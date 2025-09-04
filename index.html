@@ -824,7 +824,7 @@
 </style>
 
 
-<!-- Firebase SDK (compat) + Sync + Badge + Auto-fix key -->
+<!-- Firebase SDK (compat) + Sync + Badge + DEBUG (senza popup) -->
 <style>
 #cloudBadge{position:fixed;top:12px;right:12px;z-index:99999;padding:6px 10px;border-radius:999px;border:1px solid #475569;background:#334155;color:#e5e7eb;font:12px ui-sans-serif,system-ui}
 #dbgBtn{position:fixed;bottom:12px;right:12px;z-index:99999;padding:6px 10px;border-radius:8px;border:1px solid #475569;background:#0b1220;color:#e5e7eb;font:12px ui-sans-serif,system-ui;opacity:.85}
@@ -846,16 +846,15 @@
   D.getElementById('dbgBtn').onclick = ()=>{ P.style.display = P.style.display==='none'?'block':'none'; };
   function log(m){ if(L){ L.textContent += m + "\\n"; } console.log('[DBG]', m); }
   function badge(ok){
-    const b=D.getElementById('cloudBadge');
-    if(!b) return;
+    const b=D.getElementById('cloudBadge'); if(!b) return;
     b.textContent = ok?'Connesso':'Offline';
     b.style.background = ok ? '#065f46' : '#334155';
     b.style.color = ok ? '#d1fae5' : '#e5e7eb';
     b.style.borderColor = ok ? '#10b981' : '#475569';
   }
 
-  // Config di base (dal tuo screenshot CDN)
-  const DEFAULT_CONFIG = {
+  // CONFIG FIREBASE (hardcoded)
+  const firebaseConfig = {
     apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
@@ -864,45 +863,24 @@
     appId: "1:143536134939:web:8a00860b05a6a916df51be"
   };
 
-  function getConfig(){
-    const apiKeyOverride = localStorage.getItem('firebaseWebApiKeyOverride');
-    if(apiKeyOverride) return { ...DEFAULT_CONFIG, apiKey: apiKeyOverride };
-    return DEFAULT_CONFIG;
-  }
+  // Avvio
+  try{ firebase.initializeApp(firebaseConfig); log('init OK'); }
+  catch(e){ log('init ERROR: ' + (e && e.message ? e.message : e)); return; }
 
-  function promptForKey(){
-    const v = prompt("La Web API Key è stata rifiutata. Incolla qui la NUOVA Web API Key (Project settings → Web API Key):");
-    if(!v) return false;
-    const k = (v||'').trim().replace(/^["']|["']$/g, '');
-    if(!k) return false;
-    localStorage.setItem('firebaseWebApiKeyOverride', k);
-    location.reload();
-    return true;
-  }
+  const db = firebase.firestore();
+  firebase.auth().onAuthStateChanged(u => log('auth state: ' + (u ? 'SIGNED IN' : 'SIGNED OUT')));
 
-  function startApp(){
-    const cfg = getConfig();
-    try{ firebase.initializeApp(cfg); log('init OK'); }
-    catch(e){ log('init ERROR: ' + (e && e.message ? e.message : e)); return; }
-
-    const db = firebase.firestore();
-    firebase.auth().onAuthStateChanged(u => log('auth state: ' + (u ? 'SIGNED IN' : 'SIGNED OUT')));
-
-    firebase.auth().signInAnonymously().then(()=>{
-      log('signInAnonymously OK'); badge(true);
-      return db.collection('clubs').doc('debug-connection').set({ ping: Date.now() }, { merge: true });
-    }).then(()=>{
-      log('firestore write OK');
-      startSync(db);
-    }).catch(err=>{
-      const msg = (err && err.message ? err.message : String(err||''));
-      log('ERROR: ' + msg); if(err && err.code) log('err.code=' + err.code);
-      badge(false);
-      if((err && err.code)==='auth/api-key-not-valid' || /api[- ]?key[- ]?not[- ]?valid/i.test(msg)){
-        promptForKey();
-      }
-    });
-  }
+  firebase.auth().signInAnonymously().then(()=>{
+    log('signInAnonymously OK'); badge(true);
+    return db.collection('clubs').doc('debug-connection').set({ ping: Date.now() }, { merge: true });
+  }).then(()=>{
+    log('firestore write OK');
+    startSync(db);
+  }).catch(err=>{
+    const msg = (err && err.message ? err.message : String(err||''));
+    log('ERROR: ' + msg); if(err && err.code) log('err.code=' + err.code);
+    badge(false);
+  });
 
   function startSync(db){
     const ref = db.collection('clubs').doc('club-napoli-modena');
@@ -948,8 +926,6 @@
       }
     });
   }
-
-  startApp();
 })();
 </script>
 
@@ -1201,7 +1177,7 @@
 </style>
 
 
-<!-- Firebase SDK (compat) + Sync + Badge + Auto-fix key -->
+<!-- Firebase SDK (compat) + Sync + Badge + DEBUG (senza popup) -->
 <style>
 #cloudBadge{position:fixed;top:12px;right:12px;z-index:99999;padding:6px 10px;border-radius:999px;border:1px solid #475569;background:#334155;color:#e5e7eb;font:12px ui-sans-serif,system-ui}
 #dbgBtn{position:fixed;bottom:12px;right:12px;z-index:99999;padding:6px 10px;border-radius:8px;border:1px solid #475569;background:#0b1220;color:#e5e7eb;font:12px ui-sans-serif,system-ui;opacity:.85}
@@ -1223,16 +1199,15 @@
   D.getElementById('dbgBtn').onclick = ()=>{ P.style.display = P.style.display==='none'?'block':'none'; };
   function log(m){ if(L){ L.textContent += m + "\\n"; } console.log('[DBG]', m); }
   function badge(ok){
-    const b=D.getElementById('cloudBadge');
-    if(!b) return;
+    const b=D.getElementById('cloudBadge'); if(!b) return;
     b.textContent = ok?'Connesso':'Offline';
     b.style.background = ok ? '#065f46' : '#334155';
     b.style.color = ok ? '#d1fae5' : '#e5e7eb';
     b.style.borderColor = ok ? '#10b981' : '#475569';
   }
 
-  // Config di base (dal tuo screenshot CDN)
-  const DEFAULT_CONFIG = {
+  // CONFIG FIREBASE (hardcoded)
+  const firebaseConfig = {
     apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
@@ -1241,45 +1216,24 @@
     appId: "1:143536134939:web:8a00860b05a6a916df51be"
   };
 
-  function getConfig(){
-    const apiKeyOverride = localStorage.getItem('firebaseWebApiKeyOverride');
-    if(apiKeyOverride) return { ...DEFAULT_CONFIG, apiKey: apiKeyOverride };
-    return DEFAULT_CONFIG;
-  }
+  // Avvio
+  try{ firebase.initializeApp(firebaseConfig); log('init OK'); }
+  catch(e){ log('init ERROR: ' + (e && e.message ? e.message : e)); return; }
 
-  function promptForKey(){
-    const v = prompt("La Web API Key è stata rifiutata. Incolla qui la NUOVA Web API Key (Project settings → Web API Key):");
-    if(!v) return false;
-    const k = (v||'').trim().replace(/^["']|["']$/g, '');
-    if(!k) return false;
-    localStorage.setItem('firebaseWebApiKeyOverride', k);
-    location.reload();
-    return true;
-  }
+  const db = firebase.firestore();
+  firebase.auth().onAuthStateChanged(u => log('auth state: ' + (u ? 'SIGNED IN' : 'SIGNED OUT')));
 
-  function startApp(){
-    const cfg = getConfig();
-    try{ firebase.initializeApp(cfg); log('init OK'); }
-    catch(e){ log('init ERROR: ' + (e && e.message ? e.message : e)); return; }
-
-    const db = firebase.firestore();
-    firebase.auth().onAuthStateChanged(u => log('auth state: ' + (u ? 'SIGNED IN' : 'SIGNED OUT')));
-
-    firebase.auth().signInAnonymously().then(()=>{
-      log('signInAnonymously OK'); badge(true);
-      return db.collection('clubs').doc('debug-connection').set({ ping: Date.now() }, { merge: true });
-    }).then(()=>{
-      log('firestore write OK');
-      startSync(db);
-    }).catch(err=>{
-      const msg = (err && err.message ? err.message : String(err||''));
-      log('ERROR: ' + msg); if(err && err.code) log('err.code=' + err.code);
-      badge(false);
-      if((err && err.code)==='auth/api-key-not-valid' || /api[- ]?key[- ]?not[- ]?valid/i.test(msg)){
-        promptForKey();
-      }
-    });
-  }
+  firebase.auth().signInAnonymously().then(()=>{
+    log('signInAnonymously OK'); badge(true);
+    return db.collection('clubs').doc('debug-connection').set({ ping: Date.now() }, { merge: true });
+  }).then(()=>{
+    log('firestore write OK');
+    startSync(db);
+  }).catch(err=>{
+    const msg = (err && err.message ? err.message : String(err||''));
+    log('ERROR: ' + msg); if(err && err.code) log('err.code=' + err.code);
+    badge(false);
+  });
 
   function startSync(db){
     const ref = db.collection('clubs').doc('club-napoli-modena');
@@ -1325,8 +1279,6 @@
       }
     });
   }
-
-  startApp();
 })();
 </script>
 
@@ -2062,7 +2014,7 @@
 </style>
 
 
-<!-- Firebase SDK (compat) + Sync + Badge + Auto-fix key -->
+<!-- Firebase SDK (compat) + Sync + Badge + DEBUG (senza popup) -->
 <style>
 #cloudBadge{position:fixed;top:12px;right:12px;z-index:99999;padding:6px 10px;border-radius:999px;border:1px solid #475569;background:#334155;color:#e5e7eb;font:12px ui-sans-serif,system-ui}
 #dbgBtn{position:fixed;bottom:12px;right:12px;z-index:99999;padding:6px 10px;border-radius:8px;border:1px solid #475569;background:#0b1220;color:#e5e7eb;font:12px ui-sans-serif,system-ui;opacity:.85}
@@ -2084,16 +2036,15 @@
   D.getElementById('dbgBtn').onclick = ()=>{ P.style.display = P.style.display==='none'?'block':'none'; };
   function log(m){ if(L){ L.textContent += m + "\\n"; } console.log('[DBG]', m); }
   function badge(ok){
-    const b=D.getElementById('cloudBadge');
-    if(!b) return;
+    const b=D.getElementById('cloudBadge'); if(!b) return;
     b.textContent = ok?'Connesso':'Offline';
     b.style.background = ok ? '#065f46' : '#334155';
     b.style.color = ok ? '#d1fae5' : '#e5e7eb';
     b.style.borderColor = ok ? '#10b981' : '#475569';
   }
 
-  // Config di base (dal tuo screenshot CDN)
-  const DEFAULT_CONFIG = {
+  // CONFIG FIREBASE (hardcoded)
+  const firebaseConfig = {
     apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
@@ -2102,45 +2053,24 @@
     appId: "1:143536134939:web:8a00860b05a6a916df51be"
   };
 
-  function getConfig(){
-    const apiKeyOverride = localStorage.getItem('firebaseWebApiKeyOverride');
-    if(apiKeyOverride) return { ...DEFAULT_CONFIG, apiKey: apiKeyOverride };
-    return DEFAULT_CONFIG;
-  }
+  // Avvio
+  try{ firebase.initializeApp(firebaseConfig); log('init OK'); }
+  catch(e){ log('init ERROR: ' + (e && e.message ? e.message : e)); return; }
 
-  function promptForKey(){
-    const v = prompt("La Web API Key è stata rifiutata. Incolla qui la NUOVA Web API Key (Project settings → Web API Key):");
-    if(!v) return false;
-    const k = (v||'').trim().replace(/^["']|["']$/g, '');
-    if(!k) return false;
-    localStorage.setItem('firebaseWebApiKeyOverride', k);
-    location.reload();
-    return true;
-  }
+  const db = firebase.firestore();
+  firebase.auth().onAuthStateChanged(u => log('auth state: ' + (u ? 'SIGNED IN' : 'SIGNED OUT')));
 
-  function startApp(){
-    const cfg = getConfig();
-    try{ firebase.initializeApp(cfg); log('init OK'); }
-    catch(e){ log('init ERROR: ' + (e && e.message ? e.message : e)); return; }
-
-    const db = firebase.firestore();
-    firebase.auth().onAuthStateChanged(u => log('auth state: ' + (u ? 'SIGNED IN' : 'SIGNED OUT')));
-
-    firebase.auth().signInAnonymously().then(()=>{
-      log('signInAnonymously OK'); badge(true);
-      return db.collection('clubs').doc('debug-connection').set({ ping: Date.now() }, { merge: true });
-    }).then(()=>{
-      log('firestore write OK');
-      startSync(db);
-    }).catch(err=>{
-      const msg = (err && err.message ? err.message : String(err||''));
-      log('ERROR: ' + msg); if(err && err.code) log('err.code=' + err.code);
-      badge(false);
-      if((err && err.code)==='auth/api-key-not-valid' || /api[- ]?key[- ]?not[- ]?valid/i.test(msg)){
-        promptForKey();
-      }
-    });
-  }
+  firebase.auth().signInAnonymously().then(()=>{
+    log('signInAnonymously OK'); badge(true);
+    return db.collection('clubs').doc('debug-connection').set({ ping: Date.now() }, { merge: true });
+  }).then(()=>{
+    log('firestore write OK');
+    startSync(db);
+  }).catch(err=>{
+    const msg = (err && err.message ? err.message : String(err||''));
+    log('ERROR: ' + msg); if(err && err.code) log('err.code=' + err.code);
+    badge(false);
+  });
 
   function startSync(db){
     const ref = db.collection('clubs').doc('club-napoli-modena');
@@ -2186,8 +2116,6 @@
       }
     });
   }
-
-  startApp();
 })();
 </script>
 
