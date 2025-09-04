@@ -575,7 +575,7 @@
       const idx = state.trasferte.findIndex(t=>t.idRef===id&&t.from===from);
       if(idx>-1){
         const cur = state.trasferte[idx];
-        const val = prompt('Scrivi un appunto (lascia vuoto per rimuovere):', cur.note || '');
+        const val = /* prompt removed */
         if(val===null) return;
         const note = String(val).trim();
         if(note){ cur.note = note; } else { delete cur.note; }
@@ -583,14 +583,14 @@
       }
     }
         
-    if(act==='pos'){ const cur=state.trasferte.findIndex(t=>t.idRef===id&&t.from===from); if(cur>-1){ const max=state.trasferte.length; let val=prompt(`Nuova posizione (1 - ${max})`, String(cur+1)); if(val!==null){ let pos=parseInt(val,10); if(!isNaN(pos)){ pos=Math.max(1,Math.min(pos,max)); const [it]=state.trasferte.splice(cur,1); state.trasferte.splice(pos-1,0,it); save(); renderTrasferte(); } else { alert('Posizione non valida'); } } } }
+    if(act==='pos'){ const cur=state.trasferte.findIndex(t=>t.idRef===id&&t.from===from); if(cur>-1){ const max=state.trasferte.length; let val=/* prompt removed */ if(val!==null){ let pos=parseInt(val,10); if(!isNaN(pos)){ pos=Math.max(1,Math.min(pos,max)); const [it]=state.trasferte.splice(cur,1); state.trasferte.splice(pos-1,0,it); save(); renderTrasferte(); } else { alert('Posizione non valida'); } } } }
   });
 
 
   // Esporta l'intera lista Soci in PDF (stampa -> Salva come PDF)
   function exportSociPdf(){
     if(!state.soci.length){ alert('Nessun socio inserito.'); return; }
-    let perPage = prompt('Quanti nominativi per pagina?', '25');
+    let perPage = /* prompt removed */
     if(perPage===null) return;
     perPage = parseInt(perPage, 10);
     if(isNaN(perPage) || perPage<=0){ alert('Valore non valido'); return; }
@@ -855,7 +855,7 @@
 
   // CONFIG FIREBASE (hardcoded)
   const firebaseConfig = {
-    apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
+    apiKey: "AIzaSyBfBR_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
     storageBucket: "club-napoli-modena.firebasestorage.app",
@@ -939,7 +939,7 @@
   // Stampa Trasferte con scelta voci per pagina
   function printTrasferte(){
     if(!state.trasferte.length){ alert('La lista Trasferte è vuota.'); return; }
-    let perPage = prompt('Quanti nominativi per pagina?', '20');
+    let perPage = /* prompt removed */
     if(perPage===null) return;
     perPage = parseInt(perPage, 10);
     if(isNaN(perPage) || perPage<=0){ alert('Valore non valido'); return; }
@@ -1208,7 +1208,7 @@
 
   // CONFIG FIREBASE (hardcoded)
   const firebaseConfig = {
-    apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
+    apiKey: "AIzaSyBfBR_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
     storageBucket: "club-napoli-modena.firebasestorage.app",
@@ -1294,7 +1294,7 @@
   document.getElementById('btnArchiveTrasferta').addEventListener('click', ()=>{
     if(!state.trasferte.length){ alert('La lista Trasferte è vuota.'); return; }
     const listTitle = (document.getElementById('trasfertaNome')?.value || '').trim() || 'Trasferte';
-    const titolo=prompt('Titolo della Trasferta conclusa', listTitle);
+    const titolo=/* prompt removed */
     const snapshot=state.trasferte.map(t=>{ const src=t.from==='soci'? state.soci : state.accomp; const p=src.find(x=>x.id===t.idRef); return {...t, snapshot: p?{...p}:null}; });
     state.archivio.unshift({id:Date.now(),titolo:titolo||('Trasferta '+new Date().toLocaleString()),elenco:snapshot});
     state.trasferte=[]; save(); renderTrasferte(); renderArchivio();
@@ -2045,7 +2045,7 @@
 
   // CONFIG FIREBASE (hardcoded)
   const firebaseConfig = {
-    apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
+    apiKey: "AIzaSyBfBR_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
     storageBucket: "club-napoli-modena.firebasestorage.app",
