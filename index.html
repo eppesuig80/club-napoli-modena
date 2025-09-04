@@ -824,76 +824,112 @@
 </style>
 
 
-<!-- Firebase SDK + API Key prompt helper -->
+<!-- Firebase SDK (compat) + Sync Firestore + Badge stato -->
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
 <script>
 (function(){
-  const PROJECT_CONFIG = {
+  const firebaseConfig = {
+    apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
     storageBucket: "club-napoli-modena.firebasestorage.app",
     messagingSenderId: "143536134939",
-    appId: "1:143536134939:web:8a0086b0b05a6a916df51be"
+    appId: "1:143536134939:web:8a00860b05a6a916df51be"
   };
 
-  function getKey(){
-    let k = localStorage.getItem('firebaseWebApiKey') || '';
-    if(!k){
-      k = prompt("Incolla la tua **Web API Key** (Project settings → Web API Key):");
-      if(!k) return null;
-      k = k.trim().replace(/^["']|["']$/g, "");
-      localStorage.setItem('firebaseWebApiKey', k);
-    }
-    return k;
-  }
-
+  // Badge visivo (alto a destra)
+  const badge = document.createElement('div');
+  badge.id = 'cloudBadge';
+  badge.textContent = 'Offline';
+  Object.assign(badge.style, {
+    position:'fixed', top:'12px', right:'12px', zIndex:99999, padding:'6px 10px',
+    borderRadius:'999px', border:'1px solid #475569', background:'#334155', color:'#e5e7eb',
+    font:'12px ui-sans-serif,system-ui'
+  });
+  document.addEventListener('DOMContentLoaded', ()=> document.body.appendChild(badge));
   function setBadge(ok){
-    var chip = document.getElementById('cloudBadgePrompt');
-    if(!chip){
-      chip = document.createElement('div');
-      chip.id = 'cloudBadgePrompt';
-      chip.style.position='fixed'; chip.style.top='12px'; chip.style.right='12px';
-      chip.style.zIndex='99999'; chip.style.padding='6px 10px';
-      chip.style.borderRadius='999px'; chip.style.border='1px solid #475569';
-      chip.style.background='#334155'; chip.style.color='#e5e7eb'; chip.style.font='12px ui-sans-serif,system-ui';
-      document.body.appendChild(chip);
-    }
-    chip.textContent = ok ? 'Connesso' : 'Offline';
-    chip.style.background = ok ? '#065f46' : '#334155';
-    chip.style.color = ok ? '#d1fae5' : '#e5e7eb';
-    chip.style.borderColor = ok ? '#10b981' : '#475569';
+    badge.textContent = ok ? 'Connesso' : 'Offline';
+    badge.style.background = ok ? '#065f46' : '#334155';
+    badge.style.color = ok ? '#d1fae5' : '#e5e7eb';
+    badge.style.borderColor = ok ? '#10b981' : '#475569';
+    document.querySelectorAll('.chip, span').forEach(el=>{
+      const t=(el.textContent||'').trim().toLowerCase();
+      if(t==='offline'||t==='connesso'){ el.textContent = ok ? 'Connesso' : 'Offline'; }
+    });
   }
 
-  const apiKey = getKey();
-  if(!apiKey){ setBadge(false); return; }
-
-  window._firebaseConfig = { apiKey, ...PROJECT_CONFIG };
-
-  try{
-    firebase.initializeApp(window._firebaseConfig);
-  }catch(e){
-    console.warn('Init error', e);
-    localStorage.removeItem('firebaseWebApiKey');
-    alert('Chiave non valida. Ripeti e incolla di nuovo la Web API Key.');
-    location.reload();
-    return;
-  }
+  // Inizializza Firebase
+  try { firebase.initializeApp(firebaseConfig); }
+  catch(e){ console.warn('Firebase init error:', e); setBadge(false); return; }
 
   const db = firebase.firestore();
+
+  // Login anonimo
   firebase.auth().signInAnonymously().then(()=>{
     setBadge(true);
+    startSync();
   }).catch(err=>{
-    console.warn('Auth anonima errore', err);
-    if(String(err && err.message).toLowerCase().includes('api-key')){
-      localStorage.removeItem('firebaseWebApiKey');
-      alert('La Web API Key non è valida o non è stata incollata correttamente. Riprova.');
-      location.reload();
-    }else{
-      setBadge(false);
-    }
+    console.warn('Auth anonima errore:', err);
+    setBadge(false);
   });
+
+  // Sincronizzazione locale <-> Firestore
+  function startSync(){
+    const ref = db.collection('clubs').doc('club-napoli-modena');
+    let lastLocalWriteTs = 0, applyingRemote=false;
+    const now = ()=>Date.now();
+
+    function getPayload(){
+      try{
+        const state  = JSON.parse(localStorage.getItem('club-napoli-db-v1')||'{}');
+        const titles = JSON.parse(localStorage.getItem('club-napoli-titles')||'{}');
+        const logo   = localStorage.getItem('club-napoli-logo')||null;
+        const trasf  = localStorage.getItem('trasferte-title')||'';
+        return { state, titles, logo, trasferta_title: trasf };
+      }catch(_){ return {}; }
+    }
+    function apply(pl){
+      try{
+        if(!pl) return;
+        applyingRemote = true;
+        if(pl.state) localStorage.setItem('club-napoli-db-v1', JSON.stringify(pl.state));
+        if(pl.titles) localStorage.setItem('club-napoli-titles', JSON.stringify(pl.titles));
+        if(pl.logo!=null) localStorage.setItem('club-napoli-logo', pl.logo);
+        if(pl.trasferta_title!=null) localStorage.setItem('trasferte-title', pl.trasferte_title);
+        if(typeof renderAll === 'function'){ renderAll(); } else { location.reload(); }
+      } finally { applyingRemote=false; }
+    }
+
+    // Ascolta modifiche dal cloud
+    ref.onSnapshot(snap=>{
+      if(!snap.exists) return;
+      const data = snap.data();
+      if(data._lastWriteTs && data._lastWriteTs === lastLocalWriteTs) return;
+      apply(data);
+    });
+
+    // Intercetta il pulsante/func "save" già presente
+    const oldSave = (typeof window.save === 'function') ? window.save : null;
+    window.save = function(){
+      if(oldSave) oldSave();
+      if(applyingRemote) return;
+      const payload = getPayload();
+      lastLocalWriteTs = now();
+      ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs }, { merge:true })
+        .catch(e=> console.error('Sync up error:', e));
+    };
+
+    // Crea documento se non esiste
+    ref.get().then(s=>{
+      if(!s.exists){
+        const ts = now();
+        const payload = getPayload();
+        return ref.set({ ...payload, _lastWriteTs: ts, _createdAt: ts });
+      }
+    });
+  }
 })();
 </script>
 
@@ -1145,76 +1181,112 @@
 </style>
 
 
-<!-- Firebase SDK + API Key prompt helper -->
+<!-- Firebase SDK (compat) + Sync Firestore + Badge stato -->
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
 <script>
 (function(){
-  const PROJECT_CONFIG = {
+  const firebaseConfig = {
+    apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
     storageBucket: "club-napoli-modena.firebasestorage.app",
     messagingSenderId: "143536134939",
-    appId: "1:143536134939:web:8a0086b0b05a6a916df51be"
+    appId: "1:143536134939:web:8a00860b05a6a916df51be"
   };
 
-  function getKey(){
-    let k = localStorage.getItem('firebaseWebApiKey') || '';
-    if(!k){
-      k = prompt("Incolla la tua **Web API Key** (Project settings → Web API Key):");
-      if(!k) return null;
-      k = k.trim().replace(/^["']|["']$/g, "");
-      localStorage.setItem('firebaseWebApiKey', k);
-    }
-    return k;
-  }
-
+  // Badge visivo (alto a destra)
+  const badge = document.createElement('div');
+  badge.id = 'cloudBadge';
+  badge.textContent = 'Offline';
+  Object.assign(badge.style, {
+    position:'fixed', top:'12px', right:'12px', zIndex:99999, padding:'6px 10px',
+    borderRadius:'999px', border:'1px solid #475569', background:'#334155', color:'#e5e7eb',
+    font:'12px ui-sans-serif,system-ui'
+  });
+  document.addEventListener('DOMContentLoaded', ()=> document.body.appendChild(badge));
   function setBadge(ok){
-    var chip = document.getElementById('cloudBadgePrompt');
-    if(!chip){
-      chip = document.createElement('div');
-      chip.id = 'cloudBadgePrompt';
-      chip.style.position='fixed'; chip.style.top='12px'; chip.style.right='12px';
-      chip.style.zIndex='99999'; chip.style.padding='6px 10px';
-      chip.style.borderRadius='999px'; chip.style.border='1px solid #475569';
-      chip.style.background='#334155'; chip.style.color='#e5e7eb'; chip.style.font='12px ui-sans-serif,system-ui';
-      document.body.appendChild(chip);
-    }
-    chip.textContent = ok ? 'Connesso' : 'Offline';
-    chip.style.background = ok ? '#065f46' : '#334155';
-    chip.style.color = ok ? '#d1fae5' : '#e5e7eb';
-    chip.style.borderColor = ok ? '#10b981' : '#475569';
+    badge.textContent = ok ? 'Connesso' : 'Offline';
+    badge.style.background = ok ? '#065f46' : '#334155';
+    badge.style.color = ok ? '#d1fae5' : '#e5e7eb';
+    badge.style.borderColor = ok ? '#10b981' : '#475569';
+    document.querySelectorAll('.chip, span').forEach(el=>{
+      const t=(el.textContent||'').trim().toLowerCase();
+      if(t==='offline'||t==='connesso'){ el.textContent = ok ? 'Connesso' : 'Offline'; }
+    });
   }
 
-  const apiKey = getKey();
-  if(!apiKey){ setBadge(false); return; }
-
-  window._firebaseConfig = { apiKey, ...PROJECT_CONFIG };
-
-  try{
-    firebase.initializeApp(window._firebaseConfig);
-  }catch(e){
-    console.warn('Init error', e);
-    localStorage.removeItem('firebaseWebApiKey');
-    alert('Chiave non valida. Ripeti e incolla di nuovo la Web API Key.');
-    location.reload();
-    return;
-  }
+  // Inizializza Firebase
+  try { firebase.initializeApp(firebaseConfig); }
+  catch(e){ console.warn('Firebase init error:', e); setBadge(false); return; }
 
   const db = firebase.firestore();
+
+  // Login anonimo
   firebase.auth().signInAnonymously().then(()=>{
     setBadge(true);
+    startSync();
   }).catch(err=>{
-    console.warn('Auth anonima errore', err);
-    if(String(err && err.message).toLowerCase().includes('api-key')){
-      localStorage.removeItem('firebaseWebApiKey');
-      alert('La Web API Key non è valida o non è stata incollata correttamente. Riprova.');
-      location.reload();
-    }else{
-      setBadge(false);
-    }
+    console.warn('Auth anonima errore:', err);
+    setBadge(false);
   });
+
+  // Sincronizzazione locale <-> Firestore
+  function startSync(){
+    const ref = db.collection('clubs').doc('club-napoli-modena');
+    let lastLocalWriteTs = 0, applyingRemote=false;
+    const now = ()=>Date.now();
+
+    function getPayload(){
+      try{
+        const state  = JSON.parse(localStorage.getItem('club-napoli-db-v1')||'{}');
+        const titles = JSON.parse(localStorage.getItem('club-napoli-titles')||'{}');
+        const logo   = localStorage.getItem('club-napoli-logo')||null;
+        const trasf  = localStorage.getItem('trasferte-title')||'';
+        return { state, titles, logo, trasferta_title: trasf };
+      }catch(_){ return {}; }
+    }
+    function apply(pl){
+      try{
+        if(!pl) return;
+        applyingRemote = true;
+        if(pl.state) localStorage.setItem('club-napoli-db-v1', JSON.stringify(pl.state));
+        if(pl.titles) localStorage.setItem('club-napoli-titles', JSON.stringify(pl.titles));
+        if(pl.logo!=null) localStorage.setItem('club-napoli-logo', pl.logo);
+        if(pl.trasferta_title!=null) localStorage.setItem('trasferte-title', pl.trasferte_title);
+        if(typeof renderAll === 'function'){ renderAll(); } else { location.reload(); }
+      } finally { applyingRemote=false; }
+    }
+
+    // Ascolta modifiche dal cloud
+    ref.onSnapshot(snap=>{
+      if(!snap.exists) return;
+      const data = snap.data();
+      if(data._lastWriteTs && data._lastWriteTs === lastLocalWriteTs) return;
+      apply(data);
+    });
+
+    // Intercetta il pulsante/func "save" già presente
+    const oldSave = (typeof window.save === 'function') ? window.save : null;
+    window.save = function(){
+      if(oldSave) oldSave();
+      if(applyingRemote) return;
+      const payload = getPayload();
+      lastLocalWriteTs = now();
+      ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs }, { merge:true })
+        .catch(e=> console.error('Sync up error:', e));
+    };
+
+    // Crea documento se non esiste
+    ref.get().then(s=>{
+      if(!s.exists){
+        const ts = now();
+        const payload = getPayload();
+        return ref.set({ ...payload, _lastWriteTs: ts, _createdAt: ts });
+      }
+    });
+  }
 })();
 </script>
 
@@ -1950,76 +2022,112 @@
 </style>
 
 
-<!-- Firebase SDK + API Key prompt helper -->
+<!-- Firebase SDK (compat) + Sync Firestore + Badge stato -->
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
 <script>
 (function(){
-  const PROJECT_CONFIG = {
+  const firebaseConfig = {
+    apiKey: "AIzaSyBFBr_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
     storageBucket: "club-napoli-modena.firebasestorage.app",
     messagingSenderId: "143536134939",
-    appId: "1:143536134939:web:8a0086b0b05a6a916df51be"
+    appId: "1:143536134939:web:8a00860b05a6a916df51be"
   };
 
-  function getKey(){
-    let k = localStorage.getItem('firebaseWebApiKey') || '';
-    if(!k){
-      k = prompt("Incolla la tua **Web API Key** (Project settings → Web API Key):");
-      if(!k) return null;
-      k = k.trim().replace(/^["']|["']$/g, "");
-      localStorage.setItem('firebaseWebApiKey', k);
-    }
-    return k;
-  }
-
+  // Badge visivo (alto a destra)
+  const badge = document.createElement('div');
+  badge.id = 'cloudBadge';
+  badge.textContent = 'Offline';
+  Object.assign(badge.style, {
+    position:'fixed', top:'12px', right:'12px', zIndex:99999, padding:'6px 10px',
+    borderRadius:'999px', border:'1px solid #475569', background:'#334155', color:'#e5e7eb',
+    font:'12px ui-sans-serif,system-ui'
+  });
+  document.addEventListener('DOMContentLoaded', ()=> document.body.appendChild(badge));
   function setBadge(ok){
-    var chip = document.getElementById('cloudBadgePrompt');
-    if(!chip){
-      chip = document.createElement('div');
-      chip.id = 'cloudBadgePrompt';
-      chip.style.position='fixed'; chip.style.top='12px'; chip.style.right='12px';
-      chip.style.zIndex='99999'; chip.style.padding='6px 10px';
-      chip.style.borderRadius='999px'; chip.style.border='1px solid #475569';
-      chip.style.background='#334155'; chip.style.color='#e5e7eb'; chip.style.font='12px ui-sans-serif,system-ui';
-      document.body.appendChild(chip);
-    }
-    chip.textContent = ok ? 'Connesso' : 'Offline';
-    chip.style.background = ok ? '#065f46' : '#334155';
-    chip.style.color = ok ? '#d1fae5' : '#e5e7eb';
-    chip.style.borderColor = ok ? '#10b981' : '#475569';
+    badge.textContent = ok ? 'Connesso' : 'Offline';
+    badge.style.background = ok ? '#065f46' : '#334155';
+    badge.style.color = ok ? '#d1fae5' : '#e5e7eb';
+    badge.style.borderColor = ok ? '#10b981' : '#475569';
+    document.querySelectorAll('.chip, span').forEach(el=>{
+      const t=(el.textContent||'').trim().toLowerCase();
+      if(t==='offline'||t==='connesso'){ el.textContent = ok ? 'Connesso' : 'Offline'; }
+    });
   }
 
-  const apiKey = getKey();
-  if(!apiKey){ setBadge(false); return; }
-
-  window._firebaseConfig = { apiKey, ...PROJECT_CONFIG };
-
-  try{
-    firebase.initializeApp(window._firebaseConfig);
-  }catch(e){
-    console.warn('Init error', e);
-    localStorage.removeItem('firebaseWebApiKey');
-    alert('Chiave non valida. Ripeti e incolla di nuovo la Web API Key.');
-    location.reload();
-    return;
-  }
+  // Inizializza Firebase
+  try { firebase.initializeApp(firebaseConfig); }
+  catch(e){ console.warn('Firebase init error:', e); setBadge(false); return; }
 
   const db = firebase.firestore();
+
+  // Login anonimo
   firebase.auth().signInAnonymously().then(()=>{
     setBadge(true);
+    startSync();
   }).catch(err=>{
-    console.warn('Auth anonima errore', err);
-    if(String(err && err.message).toLowerCase().includes('api-key')){
-      localStorage.removeItem('firebaseWebApiKey');
-      alert('La Web API Key non è valida o non è stata incollata correttamente. Riprova.');
-      location.reload();
-    }else{
-      setBadge(false);
-    }
+    console.warn('Auth anonima errore:', err);
+    setBadge(false);
   });
+
+  // Sincronizzazione locale <-> Firestore
+  function startSync(){
+    const ref = db.collection('clubs').doc('club-napoli-modena');
+    let lastLocalWriteTs = 0, applyingRemote=false;
+    const now = ()=>Date.now();
+
+    function getPayload(){
+      try{
+        const state  = JSON.parse(localStorage.getItem('club-napoli-db-v1')||'{}');
+        const titles = JSON.parse(localStorage.getItem('club-napoli-titles')||'{}');
+        const logo   = localStorage.getItem('club-napoli-logo')||null;
+        const trasf  = localStorage.getItem('trasferte-title')||'';
+        return { state, titles, logo, trasferta_title: trasf };
+      }catch(_){ return {}; }
+    }
+    function apply(pl){
+      try{
+        if(!pl) return;
+        applyingRemote = true;
+        if(pl.state) localStorage.setItem('club-napoli-db-v1', JSON.stringify(pl.state));
+        if(pl.titles) localStorage.setItem('club-napoli-titles', JSON.stringify(pl.titles));
+        if(pl.logo!=null) localStorage.setItem('club-napoli-logo', pl.logo);
+        if(pl.trasferta_title!=null) localStorage.setItem('trasferte-title', pl.trasferte_title);
+        if(typeof renderAll === 'function'){ renderAll(); } else { location.reload(); }
+      } finally { applyingRemote=false; }
+    }
+
+    // Ascolta modifiche dal cloud
+    ref.onSnapshot(snap=>{
+      if(!snap.exists) return;
+      const data = snap.data();
+      if(data._lastWriteTs && data._lastWriteTs === lastLocalWriteTs) return;
+      apply(data);
+    });
+
+    // Intercetta il pulsante/func "save" già presente
+    const oldSave = (typeof window.save === 'function') ? window.save : null;
+    window.save = function(){
+      if(oldSave) oldSave();
+      if(applyingRemote) return;
+      const payload = getPayload();
+      lastLocalWriteTs = now();
+      ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs }, { merge:true })
+        .catch(e=> console.error('Sync up error:', e));
+    };
+
+    // Crea documento se non esiste
+    ref.get().then(s=>{
+      if(!s.exists){
+        const ts = now();
+        const payload = getPayload();
+        return ref.set({ ...payload, _lastWriteTs: ts, _createdAt: ts });
+      }
+    });
+  }
 })();
 </script>
 
