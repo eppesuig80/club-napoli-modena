@@ -824,32 +824,15 @@
 </style>
 
 
-<!-- DEBUG overlay + Firebase SDK (compat) -->
-<style>
-  #debugPanel{position:fixed;bottom:12px;right:12px;max-width:420px;background:#0b1220;color:#e2e8f0;
-    border:1px solid #334155;border-radius:12px;padding:12px 12px 6px 12px;z-index:99999;font:12px/1.4 ui-sans-serif,system-ui;}
-  #debugPanel h4{margin:0 0 6px 0;font-size:13px}
-  #debugLog{max-height:180px;overflow:auto;white-space:pre-wrap}
-  #testCloudBtn{margin-top:8px;padding:6px 10px;border:1px solid #475569;border-radius:8px;background:#1f2937;color:#e5e7eb;cursor:pointer}
-</style>
-<div id="debugPanel" hidden>
-  <h4>Cloud Sync – DEBUG</h4>
-  <div id="debugLog"></div>
-  <button id="testCloudBtn">Test cloud</button>
-</div>
-
+<!-- Firebase + Cloud Sync with Config Helper -->
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
 <script>
 (function(){
-  const showDebug = true; // sempre attivo per ora
-  const panel = document.getElementById('debugPanel');
-  const logBox = document.getElementById('debugLog');
-  const testBtn = document.getElementById('testCloudBtn');
-  function d(msg){ if(showDebug){ panel.hidden = false; logBox.textContent += msg + "\n"; } console.log("[DEBUG]", msg); }
-
-  window._firebaseConfig = {
+  // 1) CONFIG HELPER ---------------------------------------------------------
+  // Default config (può essere sbagliata; se non funziona, chiediamo di incollarne una corretta)
+  var DEFAULT_CONFIG = {
     apiKey: "AIzaSyBfBR_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
@@ -857,73 +840,151 @@
     messagingSenderId: "143536134939",
     appId: "1:143536134939:web:8a0086b0b05a6a916df51be"
   };
-  const FIRE_COLLECTION = 'clubs';
-  const FIRE_DOC_ID = 'club-napoli-modena';
 
-  // Trova i 3 chip esistenti della tua UI (testo esatto 'Offline' / 'Connesso')
+  function parseMaybeJSON(txt){
+    try{ return JSON.parse(txt); }catch(_){ return null; }
+  }
+
+  // Leggi eventuale config salvata localmente
+  var saved = localStorage.getItem('firebaseConfigJSON');
+  var cfg = saved ? parseMaybeJSON(saved) : null;
+  if(!cfg || !cfg.apiKey){
+    cfg = DEFAULT_CONFIG;
+  }
+  window._firebaseConfig = cfg;
+
+  // UI badge (usa i chip esistenti "Offline"/"Connesso" + ne aggiunge uno se manca)
   function paintAll(status){
-    const chips = Array.from(document.querySelectorAll('.chip, span'));
-    chips.forEach(el => {
-      const t = (el.textContent||'').trim().toLowerCase();
+    var chips = Array.from(document.querySelectorAll('.chip, span'));
+    var touched = false;
+    chips.forEach(function(el){
+      var t = (el.textContent||'').trim().toLowerCase();
       if(t==='offline' || t==='connesso'){
         el.textContent = status ? 'Connesso' : 'Offline';
         el.style.background = status ? '#065f46' : '#334155';
         el.style.color = status ? '#d1fae5' : '#e5e7eb';
         el.style.borderColor = status ? '#10b981' : '#475569';
+        touched = true;
       }
     });
-  }
-
-  function setOnline(ok){ paintAll(ok); d("STATUS: " + (ok ? "ONLINE" : "OFFLINE")); }
-
-  // Init
-  try{
-    firebase.initializeApp(window._firebaseConfig);
-    d("Firebase init: OK");
-  }catch(e){
-    d("Firebase init ERROR: " + (e&&e.message?e.message:e));
-    setOnline(false);
-    return;
-  }
-
-  const db = firebase.firestore();
-
-  firebase.auth().onAuthStateChanged(function(user){
-    if(user){
-      d("Auth state: SIGNED IN (anon) uid="+user.uid);
-      setOnline(true);
-    }else{
-      d("Auth state: signed OUT");
+    if(!touched){
+      var b = document.createElement('span');
+      b.textContent = status ? 'Connesso' : 'Offline';
+      b.className = 'chip';
+      b.style.marginLeft = '6px';
+      b.style.background = status ? '#065f46' : '#334155';
+      b.style.color = status ? '#d1fae5' : '#e5e7eb';
+      b.style.border = '1px solid ' + (status ? '#10b981' : '#475569');
+      (document.querySelector('.toolbar')||document.body).appendChild(b);
     }
-  });
+  }
 
-  firebase.auth().signInAnonymously().then(()=>{
-    d("signInAnonymously: OK");
-  }).catch(function(err){
-    d("signInAnonymously ERROR: " + err.code + " – " + err.message);
-    if(err.customData && err.customData.appName){ d("app: " + err.customData.appName); }
-    setOnline(false);
-  });
+  function askForConfigAndReload(message){
+    var txt = prompt((message||'') + '\n\nIncolla qui l’oggetto di configurazione Firebase (da { a }):');
+    if(!txt){ return; }
+    // Permette incollare direttamente l'oggetto senza JSON.stringify
+    // Proviamo a trasformarlo in JSON valido
+    try{
+      // Sostituisci chiavi non tra virgolette con virgolette (grezzo ma utile)
+      var fixed = txt.trim();
+      // se inizia con 'const firebaseConfig = {', estrai solo { ... }
+      var m = fixed.match(/\{[\s\S]*\}$/);
+      if(m) fixed = m[0];
+      // Converte in JSON grezzo: metti doppi apici sulle chiavi se mancanti
+      fixed = fixed.replace(/(\w+)\s*:/g, '"$1":');
+      var obj = JSON.parse(fixed);
+      if(!obj.apiKey){ alert('Config non valida: manca apiKey'); return; }
+      localStorage.setItem('firebaseConfigJSON', JSON.stringify(obj));
+      alert('Config salvata. La pagina verrà ricaricata.');
+      location.reload();
+    }catch(e){
+      console.error(e);
+      alert('Config non valida. Assicurati di incollare l’oggetto completo { apiKey: "...", ... }');
+    }
+  }
 
-  testBtn.addEventListener('click', function(){
-    const ref = db.collection(FIRE_COLLECTION).doc(FIRE_DOC_ID);
-    const ts = Date.now();
-    ref.set({_debugPing: ts}, {merge:true}).then(()=>{
-      d("WRITE to Firestore: OK ("+ts+")");
-      return ref.get();
-    }).then(snap=>{
-      d("READ from Firestore: " + (snap.exists ? "OK" : "NOT FOUND"));
+  // 2) INIT + SYNC -----------------------------------------------------------
+  const FIRE_COLLECTION = 'clubs';
+  const FIRE_DOC_ID = 'club-napoli-modena';
+  paintAll(false);
+
+  function start(){
+    const db = firebase.firestore();
+    // signin anonimo
+    firebase.auth().signInAnonymously().then(function(){
+      paintAll(true);
+      runSync(db);
     }).catch(function(err){
-      d("Firestore ERROR: " + (err.code || "") + " " + (err.message || err));
-      if(err && err.message && err.message.includes('Missing or insufficient permissions')){
-        d("Suggerimento: controlla le Rules e che l'Auth anonimo sia abilitato.");
+      console.warn('Auth anonima errore:', err);
+      paintAll(false);
+      if(String(err && err.code).includes('api-key')){
+        askForConfigAndReload('La apiKey non è valida.');
       }
-      setOnline(false);
+      // altri errori verranno solo mostrati sulla console
     });
-  });
+  }
 
-  // Avvia con stato Offline finché non abbiamo auth
-  setOnline(false);
+  function runSync(db){
+    let lastLocalWriteTs = 0, applyingRemote = false;
+    function now(){ return Date.now(); }
+    function getPayload(){
+      try{
+        const state = JSON.parse(localStorage.getItem('club-napoli-db-v1')||'{}');
+        const titles = JSON.parse(localStorage.getItem('club-napoli-titles')||'{}');
+        const logo = localStorage.getItem('club-napoli-logo')||null;
+        const trasfTitle = localStorage.getItem('trasferte-title')||'';
+        return { state, titles, logo, trasferta_title: trasfTitle };
+      }catch(_){ return {}; }
+    }
+    function apply(pl){
+      try{
+        if(!pl) return;
+        applyingRemote = true;
+        if(pl.state) localStorage.setItem('club-napoli-db-v1', JSON.stringify(pl.state));
+        if(pl.titles) localStorage.setItem('club-napoli-titles', JSON.stringify(pl.titles));
+        if(pl.logo!=null) localStorage.setItem('club-napoli-logo', pl.logo);
+        if(pl.trasferta_title!=null) localStorage.setItem('trasferte-title', pl.trasferta_title);
+        if(typeof renderAll === 'function'){ renderAll(); } else { location.reload(); }
+      } finally { applyingRemote = false; }
+    }
+
+    const ref = db.collection(FIRE_COLLECTION).doc(FIRE_DOC_ID);
+
+    ref.onSnapshot(function(snap){
+      if(!snap.exists) return;
+      const data = snap.data();
+      if(data._lastWriteTs && data._lastWriteTs === lastLocalWriteTs){ return; }
+      apply(data);
+    });
+
+    const oldSave = (typeof window.save === 'function') ? window.save : null;
+    window.save = function(){
+      if(oldSave) oldSave();
+      if(applyingRemote) return;
+      const payload = getPayload();
+      lastLocalWriteTs = now();
+      ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs }, { merge: true })
+         .catch(function(e){ console.error('Sync up error', e); });
+    };
+
+    ref.get().then(function(snap){
+      if(!snap.exists){
+        const payload = getPayload();
+        lastLocalWriteTs = now();
+        return ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs });
+      }
+    });
+  }
+
+  try {
+    firebase.initializeApp(window._firebaseConfig);
+    start();
+  } catch(e){
+    console.warn('Init error:', e);
+    if(String(e && e.message).toLowerCase().includes('api-key')){
+      askForConfigAndReload('La apiKey non è valida.');
+    }
+  }
 })();
 </script>
 
@@ -1175,32 +1236,15 @@
 </style>
 
 
-<!-- DEBUG overlay + Firebase SDK (compat) -->
-<style>
-  #debugPanel{position:fixed;bottom:12px;right:12px;max-width:420px;background:#0b1220;color:#e2e8f0;
-    border:1px solid #334155;border-radius:12px;padding:12px 12px 6px 12px;z-index:99999;font:12px/1.4 ui-sans-serif,system-ui;}
-  #debugPanel h4{margin:0 0 6px 0;font-size:13px}
-  #debugLog{max-height:180px;overflow:auto;white-space:pre-wrap}
-  #testCloudBtn{margin-top:8px;padding:6px 10px;border:1px solid #475569;border-radius:8px;background:#1f2937;color:#e5e7eb;cursor:pointer}
-</style>
-<div id="debugPanel" hidden>
-  <h4>Cloud Sync – DEBUG</h4>
-  <div id="debugLog"></div>
-  <button id="testCloudBtn">Test cloud</button>
-</div>
-
+<!-- Firebase + Cloud Sync with Config Helper -->
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
 <script>
 (function(){
-  const showDebug = true; // sempre attivo per ora
-  const panel = document.getElementById('debugPanel');
-  const logBox = document.getElementById('debugLog');
-  const testBtn = document.getElementById('testCloudBtn');
-  function d(msg){ if(showDebug){ panel.hidden = false; logBox.textContent += msg + "\n"; } console.log("[DEBUG]", msg); }
-
-  window._firebaseConfig = {
+  // 1) CONFIG HELPER ---------------------------------------------------------
+  // Default config (può essere sbagliata; se non funziona, chiediamo di incollarne una corretta)
+  var DEFAULT_CONFIG = {
     apiKey: "AIzaSyBfBR_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
@@ -1208,73 +1252,151 @@
     messagingSenderId: "143536134939",
     appId: "1:143536134939:web:8a0086b0b05a6a916df51be"
   };
-  const FIRE_COLLECTION = 'clubs';
-  const FIRE_DOC_ID = 'club-napoli-modena';
 
-  // Trova i 3 chip esistenti della tua UI (testo esatto 'Offline' / 'Connesso')
+  function parseMaybeJSON(txt){
+    try{ return JSON.parse(txt); }catch(_){ return null; }
+  }
+
+  // Leggi eventuale config salvata localmente
+  var saved = localStorage.getItem('firebaseConfigJSON');
+  var cfg = saved ? parseMaybeJSON(saved) : null;
+  if(!cfg || !cfg.apiKey){
+    cfg = DEFAULT_CONFIG;
+  }
+  window._firebaseConfig = cfg;
+
+  // UI badge (usa i chip esistenti "Offline"/"Connesso" + ne aggiunge uno se manca)
   function paintAll(status){
-    const chips = Array.from(document.querySelectorAll('.chip, span'));
-    chips.forEach(el => {
-      const t = (el.textContent||'').trim().toLowerCase();
+    var chips = Array.from(document.querySelectorAll('.chip, span'));
+    var touched = false;
+    chips.forEach(function(el){
+      var t = (el.textContent||'').trim().toLowerCase();
       if(t==='offline' || t==='connesso'){
         el.textContent = status ? 'Connesso' : 'Offline';
         el.style.background = status ? '#065f46' : '#334155';
         el.style.color = status ? '#d1fae5' : '#e5e7eb';
         el.style.borderColor = status ? '#10b981' : '#475569';
+        touched = true;
       }
     });
-  }
-
-  function setOnline(ok){ paintAll(ok); d("STATUS: " + (ok ? "ONLINE" : "OFFLINE")); }
-
-  // Init
-  try{
-    firebase.initializeApp(window._firebaseConfig);
-    d("Firebase init: OK");
-  }catch(e){
-    d("Firebase init ERROR: " + (e&&e.message?e.message:e));
-    setOnline(false);
-    return;
-  }
-
-  const db = firebase.firestore();
-
-  firebase.auth().onAuthStateChanged(function(user){
-    if(user){
-      d("Auth state: SIGNED IN (anon) uid="+user.uid);
-      setOnline(true);
-    }else{
-      d("Auth state: signed OUT");
+    if(!touched){
+      var b = document.createElement('span');
+      b.textContent = status ? 'Connesso' : 'Offline';
+      b.className = 'chip';
+      b.style.marginLeft = '6px';
+      b.style.background = status ? '#065f46' : '#334155';
+      b.style.color = status ? '#d1fae5' : '#e5e7eb';
+      b.style.border = '1px solid ' + (status ? '#10b981' : '#475569');
+      (document.querySelector('.toolbar')||document.body).appendChild(b);
     }
-  });
+  }
 
-  firebase.auth().signInAnonymously().then(()=>{
-    d("signInAnonymously: OK");
-  }).catch(function(err){
-    d("signInAnonymously ERROR: " + err.code + " – " + err.message);
-    if(err.customData && err.customData.appName){ d("app: " + err.customData.appName); }
-    setOnline(false);
-  });
+  function askForConfigAndReload(message){
+    var txt = prompt((message||'') + '\n\nIncolla qui l’oggetto di configurazione Firebase (da { a }):');
+    if(!txt){ return; }
+    // Permette incollare direttamente l'oggetto senza JSON.stringify
+    // Proviamo a trasformarlo in JSON valido
+    try{
+      // Sostituisci chiavi non tra virgolette con virgolette (grezzo ma utile)
+      var fixed = txt.trim();
+      // se inizia con 'const firebaseConfig = {', estrai solo { ... }
+      var m = fixed.match(/\{[\s\S]*\}$/);
+      if(m) fixed = m[0];
+      // Converte in JSON grezzo: metti doppi apici sulle chiavi se mancanti
+      fixed = fixed.replace(/(\w+)\s*:/g, '"$1":');
+      var obj = JSON.parse(fixed);
+      if(!obj.apiKey){ alert('Config non valida: manca apiKey'); return; }
+      localStorage.setItem('firebaseConfigJSON', JSON.stringify(obj));
+      alert('Config salvata. La pagina verrà ricaricata.');
+      location.reload();
+    }catch(e){
+      console.error(e);
+      alert('Config non valida. Assicurati di incollare l’oggetto completo { apiKey: "...", ... }');
+    }
+  }
 
-  testBtn.addEventListener('click', function(){
-    const ref = db.collection(FIRE_COLLECTION).doc(FIRE_DOC_ID);
-    const ts = Date.now();
-    ref.set({_debugPing: ts}, {merge:true}).then(()=>{
-      d("WRITE to Firestore: OK ("+ts+")");
-      return ref.get();
-    }).then(snap=>{
-      d("READ from Firestore: " + (snap.exists ? "OK" : "NOT FOUND"));
+  // 2) INIT + SYNC -----------------------------------------------------------
+  const FIRE_COLLECTION = 'clubs';
+  const FIRE_DOC_ID = 'club-napoli-modena';
+  paintAll(false);
+
+  function start(){
+    const db = firebase.firestore();
+    // signin anonimo
+    firebase.auth().signInAnonymously().then(function(){
+      paintAll(true);
+      runSync(db);
     }).catch(function(err){
-      d("Firestore ERROR: " + (err.code || "") + " " + (err.message || err));
-      if(err && err.message && err.message.includes('Missing or insufficient permissions')){
-        d("Suggerimento: controlla le Rules e che l'Auth anonimo sia abilitato.");
+      console.warn('Auth anonima errore:', err);
+      paintAll(false);
+      if(String(err && err.code).includes('api-key')){
+        askForConfigAndReload('La apiKey non è valida.');
       }
-      setOnline(false);
+      // altri errori verranno solo mostrati sulla console
     });
-  });
+  }
 
-  // Avvia con stato Offline finché non abbiamo auth
-  setOnline(false);
+  function runSync(db){
+    let lastLocalWriteTs = 0, applyingRemote = false;
+    function now(){ return Date.now(); }
+    function getPayload(){
+      try{
+        const state = JSON.parse(localStorage.getItem('club-napoli-db-v1')||'{}');
+        const titles = JSON.parse(localStorage.getItem('club-napoli-titles')||'{}');
+        const logo = localStorage.getItem('club-napoli-logo')||null;
+        const trasfTitle = localStorage.getItem('trasferte-title')||'';
+        return { state, titles, logo, trasferta_title: trasfTitle };
+      }catch(_){ return {}; }
+    }
+    function apply(pl){
+      try{
+        if(!pl) return;
+        applyingRemote = true;
+        if(pl.state) localStorage.setItem('club-napoli-db-v1', JSON.stringify(pl.state));
+        if(pl.titles) localStorage.setItem('club-napoli-titles', JSON.stringify(pl.titles));
+        if(pl.logo!=null) localStorage.setItem('club-napoli-logo', pl.logo);
+        if(pl.trasferta_title!=null) localStorage.setItem('trasferte-title', pl.trasferta_title);
+        if(typeof renderAll === 'function'){ renderAll(); } else { location.reload(); }
+      } finally { applyingRemote = false; }
+    }
+
+    const ref = db.collection(FIRE_COLLECTION).doc(FIRE_DOC_ID);
+
+    ref.onSnapshot(function(snap){
+      if(!snap.exists) return;
+      const data = snap.data();
+      if(data._lastWriteTs && data._lastWriteTs === lastLocalWriteTs){ return; }
+      apply(data);
+    });
+
+    const oldSave = (typeof window.save === 'function') ? window.save : null;
+    window.save = function(){
+      if(oldSave) oldSave();
+      if(applyingRemote) return;
+      const payload = getPayload();
+      lastLocalWriteTs = now();
+      ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs }, { merge: true })
+         .catch(function(e){ console.error('Sync up error', e); });
+    };
+
+    ref.get().then(function(snap){
+      if(!snap.exists){
+        const payload = getPayload();
+        lastLocalWriteTs = now();
+        return ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs });
+      }
+    });
+  }
+
+  try {
+    firebase.initializeApp(window._firebaseConfig);
+    start();
+  } catch(e){
+    console.warn('Init error:', e);
+    if(String(e && e.message).toLowerCase().includes('api-key')){
+      askForConfigAndReload('La apiKey non è valida.');
+    }
+  }
 })();
 </script>
 
@@ -2010,32 +2132,15 @@
 </style>
 
 
-<!-- DEBUG overlay + Firebase SDK (compat) -->
-<style>
-  #debugPanel{position:fixed;bottom:12px;right:12px;max-width:420px;background:#0b1220;color:#e2e8f0;
-    border:1px solid #334155;border-radius:12px;padding:12px 12px 6px 12px;z-index:99999;font:12px/1.4 ui-sans-serif,system-ui;}
-  #debugPanel h4{margin:0 0 6px 0;font-size:13px}
-  #debugLog{max-height:180px;overflow:auto;white-space:pre-wrap}
-  #testCloudBtn{margin-top:8px;padding:6px 10px;border:1px solid #475569;border-radius:8px;background:#1f2937;color:#e5e7eb;cursor:pointer}
-</style>
-<div id="debugPanel" hidden>
-  <h4>Cloud Sync – DEBUG</h4>
-  <div id="debugLog"></div>
-  <button id="testCloudBtn">Test cloud</button>
-</div>
-
+<!-- Firebase + Cloud Sync with Config Helper -->
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
 <script>
 (function(){
-  const showDebug = true; // sempre attivo per ora
-  const panel = document.getElementById('debugPanel');
-  const logBox = document.getElementById('debugLog');
-  const testBtn = document.getElementById('testCloudBtn');
-  function d(msg){ if(showDebug){ panel.hidden = false; logBox.textContent += msg + "\n"; } console.log("[DEBUG]", msg); }
-
-  window._firebaseConfig = {
+  // 1) CONFIG HELPER ---------------------------------------------------------
+  // Default config (può essere sbagliata; se non funziona, chiediamo di incollarne una corretta)
+  var DEFAULT_CONFIG = {
     apiKey: "AIzaSyBfBR_YNt-kTFoa-SAFbWk15UoS1a1X03k",
     authDomain: "club-napoli-modena.firebaseapp.com",
     projectId: "club-napoli-modena",
@@ -2043,73 +2148,151 @@
     messagingSenderId: "143536134939",
     appId: "1:143536134939:web:8a0086b0b05a6a916df51be"
   };
-  const FIRE_COLLECTION = 'clubs';
-  const FIRE_DOC_ID = 'club-napoli-modena';
 
-  // Trova i 3 chip esistenti della tua UI (testo esatto 'Offline' / 'Connesso')
+  function parseMaybeJSON(txt){
+    try{ return JSON.parse(txt); }catch(_){ return null; }
+  }
+
+  // Leggi eventuale config salvata localmente
+  var saved = localStorage.getItem('firebaseConfigJSON');
+  var cfg = saved ? parseMaybeJSON(saved) : null;
+  if(!cfg || !cfg.apiKey){
+    cfg = DEFAULT_CONFIG;
+  }
+  window._firebaseConfig = cfg;
+
+  // UI badge (usa i chip esistenti "Offline"/"Connesso" + ne aggiunge uno se manca)
   function paintAll(status){
-    const chips = Array.from(document.querySelectorAll('.chip, span'));
-    chips.forEach(el => {
-      const t = (el.textContent||'').trim().toLowerCase();
+    var chips = Array.from(document.querySelectorAll('.chip, span'));
+    var touched = false;
+    chips.forEach(function(el){
+      var t = (el.textContent||'').trim().toLowerCase();
       if(t==='offline' || t==='connesso'){
         el.textContent = status ? 'Connesso' : 'Offline';
         el.style.background = status ? '#065f46' : '#334155';
         el.style.color = status ? '#d1fae5' : '#e5e7eb';
         el.style.borderColor = status ? '#10b981' : '#475569';
+        touched = true;
       }
     });
-  }
-
-  function setOnline(ok){ paintAll(ok); d("STATUS: " + (ok ? "ONLINE" : "OFFLINE")); }
-
-  // Init
-  try{
-    firebase.initializeApp(window._firebaseConfig);
-    d("Firebase init: OK");
-  }catch(e){
-    d("Firebase init ERROR: " + (e&&e.message?e.message:e));
-    setOnline(false);
-    return;
-  }
-
-  const db = firebase.firestore();
-
-  firebase.auth().onAuthStateChanged(function(user){
-    if(user){
-      d("Auth state: SIGNED IN (anon) uid="+user.uid);
-      setOnline(true);
-    }else{
-      d("Auth state: signed OUT");
+    if(!touched){
+      var b = document.createElement('span');
+      b.textContent = status ? 'Connesso' : 'Offline';
+      b.className = 'chip';
+      b.style.marginLeft = '6px';
+      b.style.background = status ? '#065f46' : '#334155';
+      b.style.color = status ? '#d1fae5' : '#e5e7eb';
+      b.style.border = '1px solid ' + (status ? '#10b981' : '#475569');
+      (document.querySelector('.toolbar')||document.body).appendChild(b);
     }
-  });
+  }
 
-  firebase.auth().signInAnonymously().then(()=>{
-    d("signInAnonymously: OK");
-  }).catch(function(err){
-    d("signInAnonymously ERROR: " + err.code + " – " + err.message);
-    if(err.customData && err.customData.appName){ d("app: " + err.customData.appName); }
-    setOnline(false);
-  });
+  function askForConfigAndReload(message){
+    var txt = prompt((message||'') + '\n\nIncolla qui l’oggetto di configurazione Firebase (da { a }):');
+    if(!txt){ return; }
+    // Permette incollare direttamente l'oggetto senza JSON.stringify
+    // Proviamo a trasformarlo in JSON valido
+    try{
+      // Sostituisci chiavi non tra virgolette con virgolette (grezzo ma utile)
+      var fixed = txt.trim();
+      // se inizia con 'const firebaseConfig = {', estrai solo { ... }
+      var m = fixed.match(/\{[\s\S]*\}$/);
+      if(m) fixed = m[0];
+      // Converte in JSON grezzo: metti doppi apici sulle chiavi se mancanti
+      fixed = fixed.replace(/(\w+)\s*:/g, '"$1":');
+      var obj = JSON.parse(fixed);
+      if(!obj.apiKey){ alert('Config non valida: manca apiKey'); return; }
+      localStorage.setItem('firebaseConfigJSON', JSON.stringify(obj));
+      alert('Config salvata. La pagina verrà ricaricata.');
+      location.reload();
+    }catch(e){
+      console.error(e);
+      alert('Config non valida. Assicurati di incollare l’oggetto completo { apiKey: "...", ... }');
+    }
+  }
 
-  testBtn.addEventListener('click', function(){
-    const ref = db.collection(FIRE_COLLECTION).doc(FIRE_DOC_ID);
-    const ts = Date.now();
-    ref.set({_debugPing: ts}, {merge:true}).then(()=>{
-      d("WRITE to Firestore: OK ("+ts+")");
-      return ref.get();
-    }).then(snap=>{
-      d("READ from Firestore: " + (snap.exists ? "OK" : "NOT FOUND"));
+  // 2) INIT + SYNC -----------------------------------------------------------
+  const FIRE_COLLECTION = 'clubs';
+  const FIRE_DOC_ID = 'club-napoli-modena';
+  paintAll(false);
+
+  function start(){
+    const db = firebase.firestore();
+    // signin anonimo
+    firebase.auth().signInAnonymously().then(function(){
+      paintAll(true);
+      runSync(db);
     }).catch(function(err){
-      d("Firestore ERROR: " + (err.code || "") + " " + (err.message || err));
-      if(err && err.message && err.message.includes('Missing or insufficient permissions')){
-        d("Suggerimento: controlla le Rules e che l'Auth anonimo sia abilitato.");
+      console.warn('Auth anonima errore:', err);
+      paintAll(false);
+      if(String(err && err.code).includes('api-key')){
+        askForConfigAndReload('La apiKey non è valida.');
       }
-      setOnline(false);
+      // altri errori verranno solo mostrati sulla console
     });
-  });
+  }
 
-  // Avvia con stato Offline finché non abbiamo auth
-  setOnline(false);
+  function runSync(db){
+    let lastLocalWriteTs = 0, applyingRemote = false;
+    function now(){ return Date.now(); }
+    function getPayload(){
+      try{
+        const state = JSON.parse(localStorage.getItem('club-napoli-db-v1')||'{}');
+        const titles = JSON.parse(localStorage.getItem('club-napoli-titles')||'{}');
+        const logo = localStorage.getItem('club-napoli-logo')||null;
+        const trasfTitle = localStorage.getItem('trasferte-title')||'';
+        return { state, titles, logo, trasferta_title: trasfTitle };
+      }catch(_){ return {}; }
+    }
+    function apply(pl){
+      try{
+        if(!pl) return;
+        applyingRemote = true;
+        if(pl.state) localStorage.setItem('club-napoli-db-v1', JSON.stringify(pl.state));
+        if(pl.titles) localStorage.setItem('club-napoli-titles', JSON.stringify(pl.titles));
+        if(pl.logo!=null) localStorage.setItem('club-napoli-logo', pl.logo);
+        if(pl.trasferta_title!=null) localStorage.setItem('trasferte-title', pl.trasferta_title);
+        if(typeof renderAll === 'function'){ renderAll(); } else { location.reload(); }
+      } finally { applyingRemote = false; }
+    }
+
+    const ref = db.collection(FIRE_COLLECTION).doc(FIRE_DOC_ID);
+
+    ref.onSnapshot(function(snap){
+      if(!snap.exists) return;
+      const data = snap.data();
+      if(data._lastWriteTs && data._lastWriteTs === lastLocalWriteTs){ return; }
+      apply(data);
+    });
+
+    const oldSave = (typeof window.save === 'function') ? window.save : null;
+    window.save = function(){
+      if(oldSave) oldSave();
+      if(applyingRemote) return;
+      const payload = getPayload();
+      lastLocalWriteTs = now();
+      ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs }, { merge: true })
+         .catch(function(e){ console.error('Sync up error', e); });
+    };
+
+    ref.get().then(function(snap){
+      if(!snap.exists){
+        const payload = getPayload();
+        lastLocalWriteTs = now();
+        return ref.set({ ...payload, _lastWriteTs: lastLocalWriteTs });
+      }
+    });
+  }
+
+  try {
+    firebase.initializeApp(window._firebaseConfig);
+    start();
+  } catch(e){
+    console.warn('Init error:', e);
+    if(String(e && e.message).toLowerCase().includes('api-key')){
+      askForConfigAndReload('La apiKey non è valida.');
+    }
+  }
 })();
 </script>
 
