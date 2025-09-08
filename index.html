@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 
 <html lang="it">
@@ -25,6 +26,8 @@
     .subtitle{font-size:clamp(16px,2.6vw,20px);color:#cfe9ff}
     .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto}
     .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#0b1b36;color:#dbeafe;padding:12px 16px;border-radius:14px;cursor:pointer;font-size:16px}
+    .btn.orange{background:#ff9800;color:#fff}
+
     .btn:hover{background:#0e254f}
     .btn.primary{background:linear-gradient(90deg,var(--napoli-1),var(--napoli-2)); border-color:transparent}
     .btn.ghost{background:transparent;border-color:#324164}
@@ -533,7 +536,7 @@
         const label=p ? formatName(p) : `ID ${t.idRef}`;
         return `<div class="result"><span class="number">${String(i+1).padStart(3,'0')}</span> · ${label} <span class="muted">(CF: ${(p&&p.cf)||'–'})</span></div>`
       }).join('');
-      return `<div class="card" style="margin-bottom:10px"><h3>${entry.titolo}</h3><div class="body">${lines||'<div class="muted">(vuota)</div>'}</div></div>`
+      return `<div class="card" style="margin-bottom:10px"><div class="row" style="justify-content:space-between;align-items:center"><h3>${entry.titolo}</h3><button class="btn orange" data-act="riapri" data-id="${entry.id}">Riapri</button></div></h3><div class="body">${lines||'<div class="muted">(vuota)</div>'}</div></div>`
     }).join('');
   }
 
@@ -581,14 +584,14 @@
 
   handleListClick('listSoci', (act,id,from)=>{
     const i=state.soci.findIndex(x=>x.id===id); if(i===-1) return; const s=state.soci[i];
-    if(act==='bus'){ if(state.trasferte.some(t=>t.idRef===id)){ alert('Già presente in Trasferte'); return; } state.trasferte.push({idRef:id,from:'soci'}); save(); renderTrasferte(); }
+    if(act==='bus'){ if(state.trasferte.some(t=>t.idRef===id)){ alert('Nominativo già in lista'); return; } state.trasferte.push({idRef:id,from:'soci'}); save(); renderTrasferte(); }
     if(act==='edit'){ fillSocioForm(s); }
     if(act==='del'){ if(confirm('Eliminare questo socio?')){ state.trasferte=state.trasferte.filter(t=>t.idRef!==id); state.soci.splice(i,1); save(); renderAll(); } }
   });
 
   handleListClick('listAccomp', (act,id,from)=>{
     const i=state.accomp.findIndex(x=>x.id===id); if(i===-1) return; const a=state.accomp[i];
-    if(act==='bus'){ if(state.trasferte.some(t=>t.idRef===id)){ alert('Già presente in Trasferte'); return; } state.trasferte.push({idRef:id,from:'accomp'}); save(); renderTrasferte(); }
+    if(act==='bus'){ if(state.trasferte.some(t=>t.idRef===id)){ alert('Nominativo già in lista'); return; } state.trasferte.push({idRef:id,from:'accomp'}); save(); renderTrasferte(); }
     if(act==='edit'){ fillAccompForm(a); }
     if(act==='del'){ if(confirm('Eliminare questo accompagnatore?')){ state.trasferte=state.trasferte.filter(t=>t.idRef!==id); state.accomp.splice(i,1); save(); renderAll(); } }
   });
@@ -1111,8 +1114,40 @@
     const listTitle = (document.getElementById('trasfertaNome')?.value || '').trim() || 'Trasferte';
     const titolo=prompt('Titolo della Trasferta conclusa', listTitle);
     const snapshot=state.trasferte.map(t=>{ const src=t.from==='soci'? state.soci : state.accomp; const p=src.find(x=>x.id===t.idRef); return {...t, snapshot: p?{...p}:null}; });
-    state.archivio.unshift({id:Date.now(),titolo:titolo||('Trasferta '+new Date().toLocaleString()),elenco:snapshot});
+    const editingId = state._editingArchivioId || null;
+    if(editingId){
+      const idx = state.archivio.findIndex(x=>x.id===editingId);
+      if(idx>=0){
+        const prev = state.archivio[idx];
+        state.archivio[idx] = { id: prev.id, titolo: titolo || prev.titolo, elenco: snapshot };
+      }
+      state._editingArchivioId = null;
+    } else {
+      state.archivio.unshift({id:Date.now(),titolo:titolo||('Trasferta '+new Date().toLocaleString()),elenco:snapshot});
+    }
     state.trasferte=[]; save(); renderTrasferte(); renderArchivio();
+  });
+
+  
+  // [AGGIUNTA] Riapri trasferta archiviata (restore to edit)
+  document.getElementById('archivioContainer').addEventListener('click', (ev)=>{
+    const btn = ev.target.closest('[data-act="riapri"]');
+    if(!btn) return;
+    const id = Number(btn.getAttribute('data-id'));
+    const idx = state.archivio.findIndex(x=>x.id===id);
+    if(idx<0) return;
+    const entry = state.archivio[idx];
+    // Load elenco into current trasferte (deep copy to avoid refs)
+    state.trasferte = (entry.elenco||[]).map(t=>({ ...t, snapshot: t.snapshot?{...t.snapshot}:t.snapshot }));
+    // Set titolo back to input
+    const tf = document.getElementById('trasfertaNome');
+    if(tf) tf.value = entry.titolo || '';
+    // Remember which archivio index we are editing
+    state._editingArchivioId = id;
+    save();
+    renderTrasferte();
+    // Optionally scroll to top of trasferte
+    document.getElementById('cardTrasferte')?.scrollIntoView({behavior:'smooth'});
   });
 
   document.getElementById('toggleArchivio').addEventListener('click', ()=>{
@@ -1174,10 +1209,7 @@
       renderAll();
 
       // Aggiungi a Trasferte
-      if(!state.trasferte.some(t=>t.idRef===id && t.from==='soci')){
-        state.trasferte.push({idRef:id, from:'soci'});
-        save(); renderTrasferte();
-      }
+      if(!state.trasferte.some(t=>t.idRef===id && t.from==='soci')){ state.trasferte.push({idRef:id, from:'soci'}); save(); renderTrasferte(); } else { alert('Nominativo già in lista'); }
 
       clearSocio();
     });
