@@ -870,7 +870,7 @@
     const entries = state.trasferte.map((t,i)=>{
       const src=t.from==='soci'? state.soci : state.accomp;
       const p=src.find(x=>x.id===t.idRef);
-      return p ? { index:i+1, hl: !!t.hl, ...p } : null;
+      return p ? { index:i+1, hl: !!t.hl, note: (t.note||''), ...p } : null;
     }).filter(Boolean);
 
     const title = document.getElementById('clubTitle').textContent.trim() || 'CLUB NAPOLI PARTENPEI';
@@ -900,13 +900,18 @@
       .name{ font-weight:800; font-size:12.5pt; }
       .meta{ font-size:10.3pt; color:#333 }
       .idx{ color:#2563eb; font-weight:700; }
+      .appunto-badge{ display:inline-block; font-size:11pt; font-weight:800; font-style:italic; padding:2px 8px; border-radius:999px; background: rgba(245,158,11,.15); border:1px solid rgba(245,158,11,.45); color:#9a6300; margin-left:8px; }
     `;
 
     const makeRows = (arr) => arr.map(p => {
       const data = (p.data ? fmtITDate(String(p.data)) : '–');
       const line1 = `<span class="name"><span class="idx">${String(p.index).padStart(3,'0')}</span> · ${ (p.cognome||'').toUpperCase() } ${p.nome||''}</span>`;
+      
+      // [PRINT ONLY] badge appunto accanto al nominativo (nessuna modifica fuori da print)
+      const noteBadge = (p.note && String(p.note).trim()) ? ` <span class="appunto-badge">${String(p.note)}</span>` : ``;
+      const line1b = line1 + noteBadge;
       const line2 = `<div class="meta">${p.luogo||'–'} (${p.proNasc||'–'}) · ${data} · Res: ${p.res||'–'} (${p.proRes||'–'}) · Tess: ${p.tess||'–'} · CF: ${p.cf||'–'}</div>`;
-      return `<div class="row ${p.hl?'hl':''}">${line1}${line2}</div>`;
+      return `<div class="row ${p.hl?'hl':''}">${line1b}${line2}</div>`;
     }).join('');
 
     const htmlDoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stampa Trasferte</title><style>${css}</style></head><body>
