@@ -545,7 +545,7 @@ try{
       return `<div class="item ${rowClassBySex(s.sesso)}" data-id="${s.id}" data-from="soci">
         <div>
           <div class="name"><span class="number">${String(i+1).padStart(3,'0')}</span> · ${formatName(s)}</div>
-          <div class="meta">${s.luogo||'–'} (${s.proNasc||'–'}) · ${fmtITDate(s.data)} · Res: ${s.res||'–'} (${s.proRes||'–'}) · Tess: ${s.tess||'–'} · Scadenza: <strong class="scad-txt" data-id="${s.id}"></strong><strong class="scad-txt" data-id="${s.id}">${fmtISOtoIT((uiScadenze&&uiScadenze[s.id])||'')||'gg/mm/aaaa'}</strong> · CF: ${s.cf||'–'}</div>
+          <div class="meta">${s.luogo||'–'} (${s.proNasc||'–'}) · ${fmtITDate(s.data)} · Res: ${s.res||'–'} (${s.proRes||'–'}) · Tess: ${s.tess||'–'} · Scadenza: <strong class="scad-txt" data-id="${s.id}">${fmtISOtoIT((uiScadenze&&uiScadenze[s.id])||'')||'gg/mm/aaaa'}</strong> · CF: ${s.cf||'–'}</div>
         </div>
         <div class="actions">
           <button class="iconbtn" title="Aggiungi a Trasferte" data-act="bus">🚌</button>
@@ -563,7 +563,7 @@ try{
       return `<div class="item ${rowClassBySex(a.sesso)}" data-id="${a.id}" data-from="accomp">
         <div>
           <div class="name"><span class="number">${String(i+1).padStart(3,'0')}</span> · ${formatName(a)}</div>
-          <div class="meta">${a.luogo||'–'} (${a.proNasc||'–'}) · ${fmtITDate(a.data)} · Res: ${a.res||'–'} (${a.proRes||'–'}) · Tess: ${a.tess||'–'} · Scadenza: <strong class="scad-txt" data-id="${a.id}"></strong> · CF: ${a.cf||'–'}</div>
+          <div class="meta">${a.luogo||'–'} (${a.proNasc||'–'}) · ${fmtITDate(a.data)} · Res: ${a.res||'–'} (${a.proRes||'–'}) · Tess: ${a.tess||'–'} · CF: ${a.cf||'–'}</div>
         </div>
         <div class="actions">
           <button class="iconbtn" title="Aggiungi a Trasferte" data-act="bus">🚌</button>
@@ -2332,166 +2332,46 @@ try{
 })();
 
 </script>
-<!-- AUTOSAVE:BEGIN -->
+<!-- DATE-MASK:BEGIN -->
 <script>
 (function(){
-  "use strict";
   try{
-    var NS = "cnp-autosave:v6";
-    var KEY_MAP = NS + ":scadMap";           // { idPersona: "YYYY-MM-DD" }
-    var KEY_LAST_SOC_ID  = NS + ":lastSocId";
-    var KEY_LAST_ACC_ID  = NS + ":lastAccId";
-    var KEY_LAST_SOC_VAL = NS + ":lastSocVal";
-    var KEY_LAST_ACC_VAL = NS + ":lastAccVal";
-
-    function canLS(){ try{ var t="__t__"; localStorage.setItem(t,"1"); localStorage.removeItem(t); return true; }catch(e){ return false; } }
-    if(!canLS()) return;
-
-    function readJSON(k, fallback){ try{ var r = localStorage.getItem(k); return r ? JSON.parse(r) : (fallback===undefined?null:fallback); }catch(_){ return (fallback===undefined?null:fallback); } }
-    function writeJSON(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){ } }
-    function readStr(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } }
-    function writeStr(k,v){ try{ localStorage.setItem(k, v==null? "" : String(v)); }catch(_){ } }
-
-    function getMap(){ return readJSON(KEY_MAP, {}) || {}; }
-    function setMap(m){ writeJSON(KEY_MAP, m || {}); }
-
-    function mergeIntoUi(map){
-      try{
-        if(typeof window.uiScadenze === "undefined" || window.uiScadenze == null){
-          window.uiScadenze = Object.assign({}, map);
-        }else{
-          window.uiScadenze = Object.assign({}, map, window.uiScadenze);
-        }
-      }catch(_){}
-    }
-
-    function currentIds(){
-      var s = null, a = null;
-      try{ s = window.editingSocioId || null; }catch(_){}
-      try{ a = window.editingAccompId || null; }catch(_){}
-      if(!s){ s = readStr(KEY_LAST_SOC_ID); }
-      if(!a){ a = readStr(KEY_LAST_ACC_ID); }
-      return {s:s, a:a};
-    }
-
-    function applyToFormFromMap(){
-      var map = getMap();
-      var ids = currentIds();
-
-      var elS = document.getElementById("s_scadenza");
-      if(elS){
-        var vS = (ids.s && map[ids.s]!=null) ? map[ids.s] : readStr(KEY_LAST_SOC_VAL);
-        if(vS && (elS.value==="" || elS.value==null)){ elS.value = vS; try{ elS.dispatchEvent(new Event("input",{bubbles:true})); elS.dispatchEvent(new Event("change",{bubbles:true})); }catch(_){ } }
-      }
-      var elA = document.getElementById("a_scadenza");
-      if(elA){
-        var vA = (ids.a && map[ids.a]!=null) ? map[ids.a] : readStr(KEY_LAST_ACC_VAL);
-        if(vA && (elA.value==="" || elA.value==null)){ elA.value = vA; try{ elA.dispatchEvent(new Event("input",{bubbles:true})); elA.dispatchEvent(new Event("change",{bubbles:true})); }catch(_){ } }
-      }
-    }
-
-    function isoToIt(s){
+    function parseITtoISO(s){
       if(!s) return "";
-      var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if(!m) return String(s);
-      return m[3] + "/" + m[2] + "/" + m[1];
+      var d = String(s).replace(/[^0-9]/g,"");
+      if(d.length!==8) return "";
+      var dd=d.slice(0,2), mm=d.slice(2,4), yyyy=d.slice(4);
+      if(!(+dd>=1 && +dd<=31 && +mm>=1 && +mm<=12)) return "";
+      return yyyy+"-"+mm+"-"+dd;
     }
-    function applyToChips(){
-      var map = getMap();
-      try{
-        document.querySelectorAll(".scad-txt[data-id]").forEach(function(el){
-          var id = el.getAttribute("data-id");
-          if(id && map[id]!=null){
-            el.textContent = isoToIt(map[id]) || "";
-          }
-        });
-      }catch(_){}
+    function formatMask(raw){
+      var d = String(raw||"").replace(/[^0-9]/g,"");
+      if(d.length>8) d=d.slice(0,8);
+      if(d.length<=2) return d;
+      if(d.length<=4) return d.slice(0,2)+"/"+d.slice(2);
+      return d.slice(0,2)+"/"+d.slice(2,4)+"/"+d.slice(4);
     }
-
-    function scheduleRenders(){
-      try{
-        if(typeof window.renderAll === "function") window.renderAll();
-        else {
-          if(typeof window.renderSoci === "function") window.renderSoci();
-          if(typeof window.renderTrasferte === "function") window.renderTrasferte();
-        }
-      }catch(_){}
-    }
-
-    function persist(kind){ // kind: "soci" | "accomp"
-      var map = getMap();
-      var ids = currentIds();
-      if(kind==="soci"){
-        var el = document.getElementById("s_scadenza");
-        if(el){
-          var id = ids.s;
-          var val = (el.value||"").toString();
-          writeStr(KEY_LAST_SOC_VAL, val);
-          if(id){ writeStr(KEY_LAST_SOC_ID, id); map[id] = val; setMap(map); }
-        }
-      }else if(kind==="accomp"){
-        var elA = document.getElementById("a_scadenza");
-        if(elA){
-          var idA = ids.a;
-          var valA = (elA.value||"").toString();
-          writeStr(KEY_LAST_ACC_VAL, valA);
-          if(idA){ writeStr(KEY_LAST_ACC_ID, idA); map[idA] = valA; setMap(map); }
-        }
-      }
-      // allinea RAM e UI
-      mergeIntoUi(getMap());
-      scheduleRenders();
-      setTimeout(scheduleRenders,0);
-      setTimeout(applyToChips,50);
-    }
-
-    function bindField(id, kind){
-      var el = document.getElementById(id);
+    function applyDateMask(el){
       if(!el) return;
-      ["input","change","blur"].forEach(function(ev){
-        el.addEventListener(ev, function(){ persist(kind); }, true);
-      });
+      el.setAttribute("inputmode","numeric");
+      el.setAttribute("autocomplete","off");
+      function onInput(){
+        var masked = formatMask(el.value);
+        if(el.value!==masked) el.value = masked;
+        var iso = parseITtoISO(masked);
+        try{ el.dataset.iso = iso; }catch(_){}
+      }
+      el.addEventListener("input", onInput, true);
+      el.addEventListener("blur", onInput, true);
+      // init
+      onInput();
     }
-
-    function bootstrap(){
-      var map = getMap();
-      mergeIntoUi(map);
-      scheduleRenders();
-      applyToFormFromMap();
-      applyToChips();
-    }
-
-    document.addEventListener("DOMContentLoaded", function(){
-      bootstrap();
+    window.addEventListener("DOMContentLoaded", function(){
+      applyDateMask(document.getElementById("s_scadenza"));
+      applyDateMask(document.getElementById("a_scadenza"));
     });
-    window.addEventListener("load", function(){
-      // ripeti bootstrap più volte per superare script che resettano tardi
-      setTimeout(bootstrap, 0);
-      setTimeout(bootstrap, 300);
-      setTimeout(bootstrap, 1200);
-      bindField("s_scadenza","soci");
-      bindField("a_scadenza","accomp");
-
-      // per 8s controlla e riapplica se svuotato
-      var start = Date.now();
-      var intv = setInterval(function(){
-        applyToFormFromMap();
-        applyToChips();
-        if(Date.now()-start>8000) clearInterval(intv);
-      }, 200);
-    });
-
-    // quando torni visibile (es. riapertura da cache)
-    document.addEventListener("visibilitychange", function(){
-      if(!document.hidden){ applyToFormFromMap(); applyToChips(); }
-    });
-
-    // sicurezza allo scarico
-    window.addEventListener("beforeunload", function(){
-      persist("soci"); persist("accomp");
-    });
-  }catch(e){ /* mai bloccare la pagina */ }
+  }catch(e){}
 })();
 </script>
-<!-- AUTOSAVE:END -->
+<!-- DATE-MASK:END -->
 </body></html>
