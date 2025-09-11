@@ -563,7 +563,7 @@ try{
       return `<div class="item ${rowClassBySex(a.sesso)}" data-id="${a.id}" data-from="accomp">
         <div>
           <div class="name"><span class="number">${String(i+1).padStart(3,'0')}</span> · ${formatName(a)}</div>
-          <div class="meta">${a.luogo||'–'} (${a.proNasc||'–'}) · ${fmtITDate(a.data)} · Res: ${a.res||'–'} (${a.proRes||'–'}) · Tess: ${a.tess||'–'} · CF: ${a.cf||'–'}</div>
+          <div class="meta">${a.luogo||'–'} (${a.proNasc||'–'}) · ${fmtITDate(a.data)} · Res: ${a.res||'–'} (${a.proRes||'–'}) · Tess: ${a.tess||'–'} · Scadenza: <strong class=\"scad-txt\" data-id=\"${a.id}\"></strong> · CF: ${a.cf||'–'}</div>
         </div>
         <div class="actions">
           <button class="iconbtn" title="Aggiungi a Trasferte" data-act="bus">🚌</button>
@@ -2332,10 +2332,26 @@ try{
 })();
 
 </script>
-<!-- DATE-MASK:BEGIN -->
+
+<!-- SCAD-PERSIST:BEGIN -->
 <script>
 (function(){
+  "use strict";
   try{
+    var NS  = "scadPersist:safeV1";
+    var KEY = NS + ":uiScadenze"; // { id: "YYYY-MM-DD" or "gg/mm/aaaa" }
+
+    function canLS(){ try{ var t="__t__"; localStorage.setItem(t,"1"); localStorage.removeItem(t); return true; }catch(e){ return false; } }
+    if(!canLS()) return;
+
+    function readMap(){ try{ var r = localStorage.getItem(KEY); return r ? (JSON.parse(r)||{}) : {}; }catch(_){ return {}; } }
+    function writeMap(m){ try{ localStorage.setItem(KEY, JSON.stringify(m||{})); }catch(_){ } }
+
+    function fmtISOtoIT(s){
+      if(!s) return "";
+      var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m ? (m[3]+"/"+m[2]+"/"+m[1]) : String(s);
+    }
     function parseITtoISO(s){
       if(!s) return "";
       var d = String(s).replace(/[^0-9]/g,"");
@@ -2344,34 +2360,77 @@ try{
       if(!(+dd>=1 && +dd<=31 && +mm>=1 && +mm<=12)) return "";
       return yyyy+"-"+mm+"-"+dd;
     }
-    function formatMask(raw){
-      var d = String(raw||"").replace(/[^0-9]/g,"");
-      if(d.length>8) d=d.slice(0,8);
-      if(d.length<=2) return d;
-      if(d.length<=4) return d.slice(0,2)+"/"+d.slice(2);
-      return d.slice(0,2)+"/"+d.slice(2,4)+"/"+d.slice(4);
+
+    function currentId(kind){
+      try{
+        if(kind==="soci"){
+          if(window.editingSocioId) return String(window.editingSocioId);
+          var hid = document.getElementById("s_id"); if(hid && hid.value) return String(hid.value);
+        }else if(kind==="accomp"){
+          if(window.editingAccompId) return String(window.editingAccompId);
+          var hid2 = document.getElementById("a_id"); if(hid2 && hid2.value) return String(hid2.value);
+        }
+      }catch(_){}
+      return null;
     }
-    function applyDateMask(el){
-      if(!el) return;
-      el.setAttribute("inputmode","numeric");
-      el.setAttribute("autocomplete","off");
-      function onInput(){
-        var masked = formatMask(el.value);
-        if(el.value!==masked) el.value = masked;
-        var iso = parseITtoISO(masked);
-        try{ el.dataset.iso = iso; }catch(_){}
-      }
-      el.addEventListener("input", onInput, true);
-      el.addEventListener("blur", onInput, true);
-      // init
-      onInput();
+
+    function saveFromForm(){
+      var map = readMap();
+      try{
+        var sEl = document.getElementById("s_scadenza");
+        var aEl = document.getElementById("a_scadenza");
+        var sid = currentId("soci");
+        var aid = currentId("accomp");
+        if(sEl && sid){ map[sid] = parseITtoISO(sEl.value) || sEl.value || ""; }
+        if(aEl && aid){ map[aid] = parseITtoISO(aEl.value) || aEl.value || ""; }
+        writeMap(map);
+      }catch(_){}
+      // Non chiamiamo nessun render qui: evitiamo loop
+      applyToBadges();
     }
-    window.addEventListener("DOMContentLoaded", function(){
-      applyDateMask(document.getElementById("s_scadenza"));
-      applyDateMask(document.getElementById("a_scadenza"));
+
+    function applyToBadges(){
+      var map = readMap();
+      try{
+        document.querySelectorAll(".scad-txt[data-id]").forEach(function(el){
+          var id = el.getAttribute("data-id");
+          var v = id ? map[id] : "";
+          el.textContent = fmtISOtoIT(v) || "";
+        });
+      }catch(_){}
+    }
+
+    document.addEventListener("DOMContentLoaded", function(){
+      // Primo popolamento dei badge da storage
+      applyToBadges();
+
+      // Salvataggio quando scrivi sui campi scadenza
+      ["s_scadenza","a_scadenza"].forEach(function(id){
+        var el = document.getElementById(id);
+        if(!el) return;
+        ["input","change","blur"].forEach(function(ev){
+          el.addEventListener(ev, saveFromForm, true);
+        });
+      });
+
+      // Aggancio ai bottoni Aggiungi/Salva se presenti
+      ["btnAddSocio","btnAddAccomp"].forEach(function(id){
+        var b = document.getElementById(id);
+        if(b) b.addEventListener("click", saveFromForm, true);
+      });
+
+      // Secondo pass dopo eventuali render tardivi
+      setTimeout(applyToBadges, 300);
+      setTimeout(applyToBadges, 1200);
     });
-  }catch(e){}
+
+    // Salva all'uscita
+    window.addEventListener("beforeunload", saveFromForm);
+
+    // Ripristina quando torni visibile
+    document.addEventListener("visibilitychange", function(){ if(!document.hidden) applyToBadges(); });
+  }catch(e){ /* fail-safe */ }
 })();
 </script>
-<!-- DATE-MASK:END -->
+<!-- SCAD-PERSIST:END -->
 </body></html>
