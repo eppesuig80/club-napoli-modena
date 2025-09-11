@@ -88,7 +88,12 @@
       .item{grid-template-columns:1fr;}
       .actions{justify-content:flex-start}
     }
-  </style>
+  
+/* Scadenza in lista (solo a video) */
+.scad-txt{display:inline-block;padding:2px 8px;border-radius:8px;border:1px solid #24304d;background:#0b1b36;color:#cfe9ff}
+@media print{ .scad-txt{display:none !important} }
+
+</style>
 
 <style id="cnp_print_orientation_auto">@media print { @page { size: auto; } }</style>
 </head>
@@ -172,6 +177,10 @@
 <div class="field" style="grid-column:span 2">
 <label>N° Tessera</label>
 <input id="s_tess" placeholder="0000"/>
+</div>
+<div class="field" style="grid-column:span 2">
+  <label>Scadenza</label>
+  <input type="date" id="s_scadenza" placeholder="gg/mm/aaaa"/>
 </div>
 <div class="field" style="grid-column:span 3">
 <label>CF</label>
@@ -301,6 +310,10 @@
 <label>N° Tessera</label>
 <input id="a_tess" placeholder="0000"/>
 </div>
+<div class="field" style="grid-column:span 2">
+  <label>Scadenza</label>
+  <input type="date" id="a_scadenza" placeholder="gg/mm/aaaa"/>
+</div>
 <div class="field" style="grid-column:span 3">
 <label>CF</label>
 <input id="a_cf" placeholder="Codice Fiscale"/>
@@ -366,26 +379,38 @@
   function updateColorChip(selectEl, chipEl){ const info=sexColor(selectEl.value); chipEl.textContent=info.txt; chipEl.className=`chip ${info.cls}`; }
   S.sesso.addEventListener('change',()=>updateColorChip(S.sesso,S.colore)); A.sesso.addEventListener('change',()=>updateColorChip(A.sesso,A.colore)); updateColorChip(S.sesso,S.colore); updateColorChip(A.sesso,A.colore);
 
-  let editingSocioId=null, editingAccompId=null;
+  let editingSocioId=null, editingAccompId=null; window.editingAccompId=null;
 
   byId('btnAddSocio').addEventListener('click', ()=>{
     const o={nome:S.nome.value.trim(),cognome:S.cognome.value.trim(),luogo:S.luogo.value.trim(),proNasc:S.proNasc.value.trim().toUpperCase(),data:S.data.value,res:S.res.value.trim(),proRes:S.proRes.value.trim().toUpperCase(),tess:S.tess.value.trim(),cf:S.cf.value.trim().toUpperCase(),sesso:S.sesso.value,colore:sexColor(S.sesso.value).txt};
     if(!o.nome||!o.cognome){ alert('Nome e Cognome sono obbligatori'); return; }
-    if(editingSocioId){ const i=state.soci.findIndex(x=>x.id===editingSocioId); if(i>-1) state.soci[i]={...state.soci[i],...o}; editingSocioId=null; S.editFlag.style.display='none'; }
-    else{ const dup=state.soci.some(x=>x.cognome.toLowerCase()===o.cognome.toLowerCase()&&x.nome.toLowerCase()===o.nome.toLowerCase()&&x.data===o.data); if(dup && !confirm('Sembra già inserito. Aggiungere comunque?')) return; state.soci.push({id:uid(),...o}); }
+    if(editingSocioId){ const i=state.soci.findIndex(x=>x.id===editingSocioId); if(i>-1) state.soci[i]={...state.soci[i],...o}; try{ window.uiScadenze = window.uiScadenze || {}; 
+  window.uiScadenze[editingSocioId] = (document.getElementById('s_scadenza')?.value || '').toString(); 
+}catch(_){} 
+editingSocioId=null; window.editingSocioId=null; S.editFlag.style.display='none'; }
+    else{ const dup=state.soci.some(x=>x.cognome.toLowerCase()===o.cognome.toLowerCase()&&x.nome.toLowerCase()===o.nome.toLowerCase()&&x.data===o.data); if(dup && !confirm('Sembra già inserito. Aggiungere comunque?')) return; const __id = uid(); state.soci.push({id:__id, ...o}); 
+            try{ window.uiScadenze = window.uiScadenze || {}; 
+                 window.uiScadenze[__id] = (document.getElementById('s_scadenza')?.value || '').toString(); 
+            }catch(_){} }
     state.soci.sort((a,b)=>a.cognome.localeCompare(b.cognome)||a.nome.localeCompare(b.nome)); save(); renderAll(); clearSocio();
   });
-  function clearSocio(){ [S.nome,S.cognome,S.luogo,S.proNasc,S.data,S.res,S.proRes,S.tess,S.cf].forEach(x=>x.value=''); S.sesso.value='M'; updateColorChip(S.sesso,S.colore); editingSocioId=null; S.editFlag.style.display='none'; }
+  function clearSocio(){ [S.nome,S.cognome,S.luogo,S.proNasc,S.data,S.res,S.proRes,S.tess,S.cf].forEach(x=>x.value=''); S.sesso.value='M'; updateColorChip(S.sesso,S.colore); editingSocioId=null; window.editingSocioId=null; S.editFlag.style.display='none'; }
   byId('btnClearSocio').addEventListener('click', clearSocio);
 
   byId('btnAddAccomp').addEventListener('click', ()=>{
     const o={nome:A.nome.value.trim(),cognome:A.cognome.value.trim(),luogo:A.luogo.value.trim(),proNasc:A.proNasc.value.trim().toUpperCase(),data:A.data.value,res:A.res.value.trim(),proRes:A.proRes.value.trim().toUpperCase(),tess:A.tess.value.trim(),cf:A.cf.value.trim().toUpperCase(),sesso:A.sesso.value,colore:sexColor(A.sesso.value).txt};
     if(!o.nome||!o.cognome){ alert('Nome e Cognome sono obbligatori'); return; }
-    if(editingAccompId){ const i=state.accomp.findIndex(x=>x.id===editingAccompId); if(i>-1) state.accomp[i]={...state.accomp[i],...o}; editingAccompId=null; A.editFlag.style.display='none'; }
-    else{ const dup=state.accomp.some(x=>x.cognome.toLowerCase()===o.cognome.toLowerCase()&&x.nome.toLowerCase()===o.nome.toLowerCase()&&x.data===o.data); if(dup && !confirm('Sembra già inserito. Aggiungere comunque?')) return; state.accomp.push({id:uid(),...o}); }
+    if(editingAccompId){ const i=state.accomp.findIndex(x=>x.id===editingAccompId); if(i>-1) state.accomp[i]={...state.accomp[i],...o}; try{ window.uiScadenze = window.uiScadenze || {}; 
+  window.uiScadenze[editingAccompId] = (document.getElementById('a_scadenza')?.value || '').toString(); 
+}catch(_){} 
+editingAccompId=null; window.editingAccompId=null; A.editFlag.style.display='none'; }
+    else{ const dup=state.accomp.some(x=>x.cognome.toLowerCase()===o.cognome.toLowerCase()&&x.nome.toLowerCase()===o.nome.toLowerCase()&&x.data===o.data); if(dup && !confirm('Sembra già inserito. Aggiungere comunque?')) return; const __idA = uid(); state.accomp.push({id:__idA, ...o}); 
+            try{ window.uiScadenze = window.uiScadenze || {}; 
+                 window.uiScadenze[__idA] = (document.getElementById('a_scadenza')?.value || '').toString(); 
+            }catch(_){} }
     state.accomp.sort((a,b)=>a.cognome.localeCompare(b.cognome)||a.nome.localeCompare(b.nome)); save(); renderAll(); clearAccomp();
   });
-  function clearAccomp(){ [A.nome,A.cognome,A.luogo,A.proNasc,A.data,A.res,A.proRes,A.tess,A.cf].forEach(x=>x.value=''); A.sesso.value='M'; updateColorChip(A.sesso,A.colore); editingAccompId=null; A.editFlag.style.display='none'; }
+  function clearAccomp(){ [A.nome,A.cognome,A.luogo,A.proNasc,A.data,A.res,A.proRes,A.tess,A.cf].forEach(x=>x.value=''); A.sesso.value='M'; updateColorChip(A.sesso,A.colore); editingAccompId=null; window.editingAccompId=null; A.editFlag.style.display='none'; }
   byId('btnClearAccomp').addEventListener('click', clearAccomp);
 
   // Export/Import
@@ -416,7 +441,46 @@
   });
   byId('btnReset').addEventListener('click', ()=>{ if(confirm('Sicuro di eliminare TUTTO?')){ localStorage.removeItem(storeKey); localStorage.removeItem(titleKey); localStorage.removeItem(logoKey); localStorage.removeItem(trasfTitleKey); localStorage.removeItem(accompVisibleKey); localStorage.removeItem(formAccompVisibleKey); location.reload(); } });
 
-  // Search
+  
+  // === UI-only Scadenze (non persistenti) ===
+
+// LIVE update of Scadenza while editing (UI-only)
+try{
+  const elS = document.getElementById('s_scadenza');
+  if (elS){
+    elS.addEventListener('change', ()=>{
+      if (window.editingSocioId){
+        window.uiScadenze = window.uiScadenze || {};
+        window.uiScadenze[window.editingSocioId] = (elS.value ?? '').toString();
+        try{ renderAll(); }catch(_){}
+      }
+    });
+  }
+}catch(_){}
+try{
+  const elA = document.getElementById('a_scadenza');
+  if (elA){
+    elA.addEventListener('change', ()=>{
+      if (window.editingAccompId){
+        window.uiScadenze = window.uiScadenze || {};
+        window.uiScadenze[window.editingAccompId] = (elA.value ?? '').toString();
+        try{ renderAll(); }catch(_){}
+      }
+    });
+  }
+}catch(_){}
+
+  window.uiScadenze = window.uiScadenze || {};
+  function fmtISOtoIT(v){
+    if(!v) return '';
+    v = String(v).trim();
+    let m = v.match(/^\d{4}-\d{2}-\d{2}$/);
+    if(m){ const [y,mm,dd]=v.split('-'); return `${dd}/${mm}/${y}`; }
+    m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m){ const dd=m[1].padStart(2,'0'); const mm=m[2].padStart(2,'0'); return `${dd}/${mm}/${m[3]}`; }
+    return v;
+  }
+// Search
   const search=byId('search'); const searchResults=document.getElementById('searchResults');
   search.addEventListener('input', ()=>{
     const q=search.value.trim().toLowerCase();
@@ -435,8 +499,16 @@
   });
   document.addEventListener('click', e=>{ if(!searchResults.contains(e.target) && e.target!==search) searchResults.style.display='none'; });
 
-  function fillSocioForm(s){ if(!s) return; S.nome.value=s.nome||''; S.cognome.value=s.cognome||''; S.luogo.value=s.luogo||''; S.proNasc.value=s.proNasc||''; S.data.value=s.data||''; S.res.value=s.res||''; S.proRes.value=s.proRes||''; S.tess.value=s.tess||''; S.cf.value=s.cf||''; S.sesso.value=s.sesso||'M'; updateColorChip(S.sesso,S.colore); editingSocioId=s.id; S.editFlag.style.display='inline-flex'; window.scrollTo({top:byId('formSociSection').offsetTop-10,behavior:'smooth'}); }
-  function fillAccompForm(a){ if(!a) return; A.nome.value=a.nome||''; A.cognome.value=a.cognome||''; A.luogo.value=a.luogo||''; A.proNasc.value=a.proNasc||''; A.data.value=a.data||''; A.res.value=a.res||''; A.proRes.value=a.proRes||''; A.tess.value=a.tess||''; A.cf.value=a.cf||''; A.sesso.value=a.sesso||'M'; updateColorChip(A.sesso,A.colore); editingAccompId=a.id; A.editFlag.style.display='inline-flex'; window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); }
+  function fillSocioForm(s){ if(!s) return; S.nome.value=s.nome||''; S.cognome.value=s.cognome||''; S.luogo.value=s.luogo||''; S.proNasc.value=s.proNasc||''; S.data.value=s.data||''; S.res.value=s.res||''; S.proRes.value=s.proRes||''; S.tess.value=s.tess||''; S.cf.value=s.cf||''; S.sesso.value=s.sesso||'M';
+    try{ const el=document.getElementById('s_scadenza'); if(el) el.value=(uiScadenze&&uiScadenze[s.id])||''; }catch(_){}
+
+    try{ const el=document.getElementById('s_scadenza'); if(el) el.value=(uiScadenze&&uiScadenze[s.id])||''; }catch(_){}
+ updateColorChip(S.sesso,S.colore); editingSocioId=s.id; window.editingSocioId=s.id; S.editFlag.style.display='inline-flex'; window.scrollTo({top:byId('formSociSection').offsetTop-10,behavior:'smooth'}); }
+  function fillAccompForm(a){ if(!a) return; A.nome.value=a.nome||''; A.cognome.value=a.cognome||''; A.luogo.value=a.luogo||''; A.proNasc.value=a.proNasc||''; A.data.value=a.data||''; A.res.value=a.res||''; A.proRes.value=a.proRes||''; A.tess.value=a.tess||''; A.cf.value=a.cf||''; A.sesso.value=a.sesso||'M';
+    try{ const el=document.getElementById('a_scadenza'); if(el) el.value=(uiScadenze&&uiScadenze[a.id])||''; }catch(_){}
+
+    try{ const el=document.getElementById('a_scadenza'); if(el) el.value=(uiScadenze&&uiScadenze[a.id])||''; }catch(_){}
+ updateColorChip(A.sesso,A.colore); editingAccompId=a.id; window.editingAccompId=a.id; A.editFlag.style.display='inline-flex'; window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); }
 
   function rowClassBySex(s){ const v = String(s||'').trim().toUpperCase(); return v==='F' ? 'sex-f' : 'sex-m'; }
 
@@ -473,7 +545,7 @@
       return `<div class="item ${rowClassBySex(s.sesso)}" data-id="${s.id}" data-from="soci">
         <div>
           <div class="name"><span class="number">${String(i+1).padStart(3,'0')}</span> · ${formatName(s)}</div>
-          <div class="meta">${s.luogo||'–'} (${s.proNasc||'–'}) · ${fmtITDate(s.data)} · Res: ${s.res||'–'} (${s.proRes||'–'}) · Tess: ${s.tess||'–'} · CF: ${s.cf||'–'}</div>
+          <div class="meta">${s.luogo||'–'} (${s.proNasc||'–'}) · ${fmtITDate(s.data)} · Res: ${s.res||'–'} (${s.proRes||'–'}) · Tess: ${s.tess||'–'} · Scadenza: <strong class="scad-txt" data-id="${s.id}"></strong><strong class="scad-txt" data-id="${s.id}">${fmtISOtoIT((uiScadenze&&uiScadenze[s.id])||'')||'gg/mm/aaaa'}</strong> · CF: ${s.cf||'–'}</div>
         </div>
         <div class="actions">
           <button class="iconbtn" title="Aggiungi a Trasferte" data-act="bus">🚌</button>
@@ -491,7 +563,7 @@
       return `<div class="item ${rowClassBySex(a.sesso)}" data-id="${a.id}" data-from="accomp">
         <div>
           <div class="name"><span class="number">${String(i+1).padStart(3,'0')}</span> · ${formatName(a)}</div>
-          <div class="meta">${a.luogo||'–'} (${a.proNasc||'–'}) · ${fmtITDate(a.data)} · Res: ${a.res||'–'} (${a.proRes||'–'}) · Tess: ${a.tess||'–'} · CF: ${a.cf||'–'}</div>
+          <div class="meta">${a.luogo||'–'} (${a.proNasc||'–'}) · ${fmtITDate(a.data)} · Res: ${a.res||'–'} (${a.proRes||'–'}) · Tess: ${a.tess||'–'} · Scadenza: <strong class="scad-txt" data-id="${a.id}"></strong> · CF: ${a.cf||'–'}</div>
         </div>
         <div class="actions">
           <button class="iconbtn" title="Aggiungi a Trasferte" data-act="bus">🚌</button>
@@ -512,7 +584,7 @@
       return `<div class="item ${t.hl?'hl':''}" data-id="${p.id}" data-from="${t.from}">
         <div>
           <div class="name ${t.note ? 'note-active' : ''}"><span class="number">${String(i+1).padStart(3,'0')}</span> · ${formatName(p)}${t.note ? ` <span class="appunto">${escHtml(t.note)}</span>` : ``}</div>
-          <div class="meta">${p.luogo||'–'} (${p.proNasc||'–'}) · ${fmtITDate(p.data)} · Res: ${p.res||'–'} (${p.proRes||'–'}) · Tess: ${p.tess||'–'} · CF: ${p.cf||'–'}</div>
+          <div class="meta">${p.luogo||'–'} (${p.proNasc||'–'}) · ${fmtITDate(p.data)} · Res: ${p.res||'–'} (${p.proRes||'–'}) · Tess: ${p.tess||'–'} · Scadenza: <strong class="scad-txt" data-id="${p.id}">${fmtISOtoIT((uiScadenze&&uiScadenze[p.id])||'')||'gg/mm/aaaa'}</strong> · CF: ${p.cf||'–'}</div>
         </div>
         <div class="actions">
           <button class="iconbtn" title="Evidenzia" data-act="hl">🖍️</button>
@@ -1187,7 +1259,7 @@
       if (editingSocioId){
         const i = state.soci.findIndex(x=>x.id===editingSocioId);
         if(i !== -1){ state.soci[i] = {...state.soci[i], ...o}; id = state.soci[i].id; }
-        editingSocioId = null;
+        editingSocioId=null; window.editingSocioId=null;
         if (S.editFlag) S.editFlag.style.display='none';
       }
       // 2) Se non stai modificando: prova corrispondenza CF
@@ -1964,6 +2036,462 @@
       };
     }
   })();
-</script>
+    // also bind to click on Salva (post-save, in caso di nuovo socio)
+    (function(){
+      const btn = document.getElementById('btnAddSocio');
+      if(btn){
+        btn.addEventListener('click', ()=>{
+          setTimeout(applyScadenzaFromForm, 0);
+          setTimeout(applyScadenzaFromForm, 200);
+        });
+      }
+    })();
+  })();
+  })();
+  })();
 
+  // === Scadenza: form -> liste (fallback sul primo elemento visibile) ===
+  (function(){
+    function resolveSocioId(){
+      // Prefer editing id if present
+      if(window.editingSocioId) return window.editingSocioId;
+      // Try CF / Tessera / Nome+Cogno from state
+      try{
+        const cf = (S && S.cf && S.cf.value || '').trim().toUpperCase();
+        if(cf && Array.isArray(state?.soci)){
+          const hit = state.soci.find(x => (x.cf||'').toUpperCase() === cf);
+          if(hit) return hit.id;
+        }
+        const tess = (S && S.tess && S.tess.value || '').trim();
+        if(tess && Array.isArray(state?.soci)){
+          const hit = state.soci.find(x => String(x.tess||'').trim() === tess);
+          if(hit) return hit.id;
+        }
+        const nome = (S && S.nome && S.nome.value || '').trim().toLowerCase();
+        const cognome = (S && S.cognome && S.cognome.value || '').trim().toLowerCase();
+        if(nome && cognome && Array.isArray(state?.soci)){
+          const hit = state.soci.find(x => String(x.nome||'').toLowerCase()===nome && String(x.cognome||'').toLowerCase()===cognome);
+          if(hit) return hit.id;
+        }
+      }catch(_){}
+      // Fallback: take the first visible row in #listSoci
+      try{
+        const first = document.querySelector('#listSoci .item');
+        if(first) return first.getAttribute('data-id') || null;
+      }catch(_){}
+      return null;
+    }
+    function applyScadenzaFromForm(){
+      const el = document.getElementById('s_scadenza'); if(!el) return;
+      const raw = (el.value ?? '').toString();
+      const id = resolveSocioId(); if(!id) return;
+      window.uiScadenze = window.uiScadenze || {};
+      window.uiScadenze[id] = raw;
+      try{ renderSoci(); }catch(_){}
+      try{ renderTrasferte(); }catch(_){}
+    }
+    const el = document.getElementById('s_scadenza');
+    if(el){ ['input','change','blur'].forEach(ev => el.addEventListener(ev, applyScadenzaFromForm)); }
+    const btn = document.getElementById('btnAddSocio');
+    if(btn){ btn.addEventListener('click', ()=>{ setTimeout(applyScadenzaFromForm,0); setTimeout(applyScadenzaFromForm,200); }); }
+  })();
+
+  // === Scadenza: binder unico (Soci + Accompagnatori), con tutti i fallback ===
+  (function(){
+    function resolveIdFromForm(formObj, type){
+      try{
+        const cf = (formObj && formObj.cf && formObj.cf.value || '').trim().toUpperCase();
+        const tess = (formObj && formObj.tess && formObj.tess.value || '').trim();
+        const nome = (formObj && formObj.nome && formObj.nome.value || '').trim().toLowerCase();
+        const cognome = (formObj && formObj.cognome && formObj.cognome.value || '').trim().toLowerCase();
+        const arr = (type==='soci' ? (state?.soci||[]) : (state?.accomp||[]));
+        if(cf){ const hit = arr.find(x => (x.cf||'').toUpperCase()===cf); if(hit) return hit.id; }
+        if(tess){ const hit = arr.find(x => String(x.tess||'').trim()===tess); if(hit) return hit.id; }
+        if(nome && cognome){ const hit = arr.find(x => String(x.nome||'').toLowerCase()===nome && String(x.cognome||'').toLowerCase()===cognome); if(hit) return hit.id; }
+      }catch(_){}
+      return null;
+    }
+    function resolveIdFromDOM(listId, formObj){
+      try{
+        const list = document.getElementById(listId);
+        if(!list) return null;
+        const items = Array.from(list.querySelectorAll('.item'));
+        if(items.length===1) return items[0].getAttribute('data-id')||null;
+        // by CF in meta
+        const cf = (formObj && formObj.cf && formObj.cf.value || '').trim().toUpperCase();
+        if(cf){
+          const hit = items.find(it => {
+            const meta = it.querySelector('.meta'); 
+            return meta && /CF:\s*([A-Z0-9]+)/i.test(meta.textContent) && meta.textContent.toUpperCase().includes(cf);
+          });
+          if(hit) return hit.getAttribute('data-id')||null;
+        }
+        // by name
+        const nome = (formObj && formObj.nome && formObj.nome.value || '').trim().toLowerCase();
+        const cognome = (formObj && formObj.cognome && formObj.cognome.value || '').trim().toLowerCase();
+        if(nome && cognome){
+          const hit = items.find(it => {
+            const t = (it.querySelector('.name')?.textContent || '').toLowerCase();
+            return t.includes(cognome) && t.includes(nome);
+          });
+          if(hit) return hit.getAttribute('data-id')||null;
+        }
+      }catch(_){}
+      return null;
+    }
+    function applyScad(val, type){
+      try{
+        window.uiScadenze = window.uiScadenze || {};
+        // render both lists to reflect
+        try{ renderSoci(); }catch(_){}
+        try{ renderTrasferte(); }catch(_){}
+      }catch(_){}
+    }
+    function bindField(inputId, type){
+      const el = document.getElementById(inputId);
+      if(!el) return;
+      const isSoci = (type==='soci');
+      const formObj = isSoci ? S : A;
+      function resolveId(){
+        return (isSoci ? window.editingSocioId : window.editingAccompId)
+               || resolveIdFromForm(formObj, type)
+               || resolveIdFromDOM(isSoci ? 'listSoci' : 'listAccomp', formObj)
+               || (isSoci ? (document.querySelector('#listSoci .item')?.getAttribute('data-id')||null)
+                          : (document.querySelector('#listAccomp .item')?.getAttribute('data-id')||null));
+      }
+      function handler(){
+        const raw = (el.value ?? '').toString();
+        const id = resolveId();
+        if(!id) return;
+        window.uiScadenze = window.uiScadenze || {};
+        window.uiScadenze[id] = raw; // UI-only, tollerante
+        try{ renderSoci(); }catch(_){}
+        try{ renderTrasferte(); }catch(_){}
+      }
+      ['input','change','blur'].forEach(ev => el.addEventListener(ev, handler));
+      // also after save buttons
+      const btn = document.getElementById(isSoci ? 'btnAddSocio' : 'btnAddAccomp');
+      if(btn){ btn.addEventListener('click', ()=>{ setTimeout(handler,0); setTimeout(handler,200); }); }
+    }
+    bindField('s_scadenza','soci');
+    bindField('a_scadenza','accomp');
+  })();
+
+  // === Scadenza: binder unico (Soci + Accompagnatori), robusto e UI-only ===
+  (function(){
+    function resolveIdFromForm(formObj, arr){
+      try{
+        const cf = (formObj && formObj.cf && formObj.cf.value || '').trim().toUpperCase();
+        const tess = (formObj && formObj.tess && formObj.tess.value || '').trim();
+        const nome = (formObj && formObj.nome && formObj.nome.value || '').trim().toLowerCase();
+        const cognome = (formObj && formObj.cognome && formObj.cognome.value || '').trim().toLowerCase();
+        if(cf){ const hit = arr.find(x => (x.cf||'').toUpperCase()===cf); if(hit) return hit.id; }
+        if(tess){ const hit = arr.find(x => String(x.tess||'').trim()===tess); if(hit) return hit.id; }
+        if(nome && cognome){ const hit = arr.find(x => String(x.nome||'').toLowerCase()===nome && String(x.cognome||'').toLowerCase()===cognome); if(hit) return hit.id; }
+      }catch(_){}
+      return null;
+    }
+    function resolveIdFromDOM(listId, formObj){
+      try{
+        const list = document.getElementById(listId);
+        if(!list) return null;
+        const items = Array.from(list.querySelectorAll('.item'));
+        if(items.length===1) return items[0].getAttribute('data-id')||null;
+        // match by CF
+        const cf = (formObj && formObj.cf && formObj.cf.value || '').trim().toUpperCase();
+        if(cf){
+          const hit = items.find(it => {
+            const meta = it.querySelector('.meta'); 
+            return meta && /CF:\s*([A-Z0-9]+)/i.test(meta.textContent) && meta.textContent.toUpperCase().includes(cf);
+          });
+          if(hit) return hit.getAttribute('data-id')||null;
+        }
+        // match by name
+        const nome = (formObj && formObj.nome && formObj.nome.value || '').trim().toLowerCase();
+        const cognome = (formObj && formObj.cognome && formObj.cognome.value || '').trim().toLowerCase();
+        if(nome && cognome){
+          const hit = items.find(it => {
+            const t = (it.querySelector('.name')?.textContent || '').toLowerCase();
+            return t.includes(cognome) && t.includes(nome);
+          });
+          if(hit) return hit.getAttribute('data-id')||null;
+        }
+      }catch(_){}
+      return null;
+    }
+    function bindField(inputId, formObj, listId, dataArr, editingIdRef){
+      const el = document.getElementById(inputId);
+      if(!el) return;
+      function resolveId(){
+        return (window[editingIdRef]||null) || resolveIdFromForm(formObj, dataArr) || resolveIdFromDOM(listId, formObj) || (document.querySelector('#'+listId+' .item')?.getAttribute('data-id')||null);
+      }
+      function handler(){
+        const raw = (el.value ?? '').toString();
+        const id = resolveId();
+        if(!id) return;
+        window.uiScadenze = window.uiScadenze || {};
+        window.uiScadenze[id] = raw; // UI-only
+        try{ renderSoci(); }catch(_){}
+        try{ renderTrasferte(); }catch(_){}
+      }
+      ['input','change','blur'].forEach(ev => el.addEventListener(ev, handler));
+      const btn = document.getElementById(inputId==='s_scadenza' ? 'btnAddSocio' : 'btnAddAccomp');
+      if(btn){ btn.addEventListener('click', ()=>{ setTimeout(handler,0); setTimeout(handler,200); }); }
+    }
+    bindField('s_scadenza', window.S, 'listSoci', (state?.soci||[]), 'editingSocioId');
+    bindField('a_scadenza', window.A, 'listAccomp', (state?.accomp||[]), 'editingAccompId');
+  })();
+
+  // === Autosave on page hide/close ===
+  (function(){
+    function __autosave_now() {
+      try {
+        localStorage.setItem('club-napoli-db-v1', JSON.stringify(state));
+        // Persist titolo lista se presente
+        try {
+          var tf = document.getElementById('trasfertaNome');
+          if (tf && tf.value != null) localStorage.setItem('trasferte-title', (tf.value||'').trim());
+        } catch(_){
+        }
+      } catch(e) {}
+    }
+    // When tab/page is hidden
+    document.addEventListener('visibilitychange', function(){
+      if (document.visibilityState === 'hidden') __autosave_now();
+    });
+    // On pagehide (mobile/Safari)
+    window.addEventListener('pagehide', __autosave_now, {"capture": true});
+    // On beforeunload (as a last resort)
+    window.addEventListener('beforeunload', __autosave_now, {"capture": true});
+  
+  // === AUTOSAVE (inside IIFE): persist state & title on hide/close ===
+  (function(){
+    // Reuse existing save() if present in this scope; else define a lightweight persist
+    let __persist = (typeof save === 'function') ? save : function(){
+      try{
+        localStorage.setItem(storeKey, JSON.stringify(state));
+        const tf = document.getElementById('trasfertaNome');
+        if(tf) { localStorage.setItem(trasfTitleKey, (tf.value||'').trim()); }
+      }catch(e){}
+    };
+    // Expose for debugging/manual calls
+    try { window.__persist = __persist; } catch(_){}
+    try { window.state = state; } catch(_){}
+    // Hook lifecycle events
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState === 'hidden'){ __persist(); }
+    }, {capture:true});
+    window.addEventListener('pagehide', __persist, {capture:true});
+    window.addEventListener('beforeunload', __persist, {capture:true});
+    window.addEventListener('unload', __persist, {capture:true});
+  })();
+
+
+  // === AUTOSAVE (start after first render) ===
+  (function(){
+    let __ready = false;
+    
+    // Ensure autosave starts very early after open
+    try{ document.addEventListener('DOMContentLoaded', function(){ __ready = true; }, {once:true}); }catch(_){}
+    try{ setTimeout(function(){ __ready = true; }, 200); }catch(_){}
+// mark ready right after the first renderAll call
+    try {
+      const _renderAll = renderAll;
+      window.renderAll = function(){ _renderAll && _renderAll(); __ready = true; };
+    } catch(_){
+      __ready = true;
+    }
+    function __persist(){
+      if(!__ready) return;
+      try{ if (typeof save === 'function') save(); }catch(_){}
+      try{
+        var tf = document.getElementById('trasfertaNome');
+        if(tf) localStorage.setItem('trasferte-title', (tf.value||'').trim());
+      }catch(_){
+      }
+    }
+    // Debounced persist for frequent events
+    function __debounce(fn, ms){ let t; return function(){ clearTimeout(t); t=setTimeout(fn, ms); }; }
+    const __dp = __debounce(function(){ try{ if (typeof save==='function') save(); }catch(_){} __persist(); }, 250);
+
+    // User interactions
+    try{ document.addEventListener('input', __dp, {capture:true}); }catch(_){}
+    try{ document.addEventListener('change', __dp, {capture:true}); }catch(_){}
+    try{ document.addEventListener('click', __dp, {capture:true}); }catch(_){}
+
+    // Page lifecycle (close/background)
+    try{ document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') __persist(); }, {capture:true}); }catch(_){}
+    try{ window.addEventListener('pagehide', __persist, {capture:true}); }catch(_){}
+    try{ window.addEventListener('beforeunload', __persist, {capture:true}); }catch(_){}
+    try{ window.addEventListener('unload', __persist, {capture:true}); }catch(_){}
+
+    // Periodic
+    try{ window.__autosaveTimer = setInterval(__persist, 5000); }catch(_){}
+  })();
+
+})();
+
+</script>
+<!-- AUTOSAVE:BEGIN -->
+<script>
+(function(){
+  "use strict";
+  try{
+    var NS = "cnp-autosave:v6";
+    var KEY_MAP = NS + ":scadMap";           // { idPersona: "YYYY-MM-DD" }
+    var KEY_LAST_SOC_ID  = NS + ":lastSocId";
+    var KEY_LAST_ACC_ID  = NS + ":lastAccId";
+    var KEY_LAST_SOC_VAL = NS + ":lastSocVal";
+    var KEY_LAST_ACC_VAL = NS + ":lastAccVal";
+
+    function canLS(){ try{ var t="__t__"; localStorage.setItem(t,"1"); localStorage.removeItem(t); return true; }catch(e){ return false; } }
+    if(!canLS()) return;
+
+    function readJSON(k, fallback){ try{ var r = localStorage.getItem(k); return r ? JSON.parse(r) : (fallback===undefined?null:fallback); }catch(_){ return (fallback===undefined?null:fallback); } }
+    function writeJSON(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){ } }
+    function readStr(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } }
+    function writeStr(k,v){ try{ localStorage.setItem(k, v==null? "" : String(v)); }catch(_){ } }
+
+    function getMap(){ return readJSON(KEY_MAP, {}) || {}; }
+    function setMap(m){ writeJSON(KEY_MAP, m || {}); }
+
+    function mergeIntoUi(map){
+      try{
+        if(typeof window.uiScadenze === "undefined" || window.uiScadenze == null){
+          window.uiScadenze = Object.assign({}, map);
+        }else{
+          window.uiScadenze = Object.assign({}, map, window.uiScadenze);
+        }
+      }catch(_){}
+    }
+
+    function currentIds(){
+      var s = null, a = null;
+      try{ s = window.editingSocioId || null; }catch(_){}
+      try{ a = window.editingAccompId || null; }catch(_){}
+      if(!s){ s = readStr(KEY_LAST_SOC_ID); }
+      if(!a){ a = readStr(KEY_LAST_ACC_ID); }
+      return {s:s, a:a};
+    }
+
+    function applyToFormFromMap(){
+      var map = getMap();
+      var ids = currentIds();
+
+      var elS = document.getElementById("s_scadenza");
+      if(elS){
+        var vS = (ids.s && map[ids.s]!=null) ? map[ids.s] : readStr(KEY_LAST_SOC_VAL);
+        if(vS && (elS.value==="" || elS.value==null)){ elS.value = vS; try{ elS.dispatchEvent(new Event("input",{bubbles:true})); elS.dispatchEvent(new Event("change",{bubbles:true})); }catch(_){ } }
+      }
+      var elA = document.getElementById("a_scadenza");
+      if(elA){
+        var vA = (ids.a && map[ids.a]!=null) ? map[ids.a] : readStr(KEY_LAST_ACC_VAL);
+        if(vA && (elA.value==="" || elA.value==null)){ elA.value = vA; try{ elA.dispatchEvent(new Event("input",{bubbles:true})); elA.dispatchEvent(new Event("change",{bubbles:true})); }catch(_){ } }
+      }
+    }
+
+    function isoToIt(s){
+      if(!s) return "";
+      var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if(!m) return String(s);
+      return m[3] + "/" + m[2] + "/" + m[1];
+    }
+    function applyToChips(){
+      var map = getMap();
+      try{
+        document.querySelectorAll(".scad-txt[data-id]").forEach(function(el){
+          var id = el.getAttribute("data-id");
+          if(id && map[id]!=null){
+            el.textContent = isoToIt(map[id]) || "";
+          }
+        });
+      }catch(_){}
+    }
+
+    function scheduleRenders(){
+      try{
+        if(typeof window.renderAll === "function") window.renderAll();
+        else {
+          if(typeof window.renderSoci === "function") window.renderSoci();
+          if(typeof window.renderTrasferte === "function") window.renderTrasferte();
+        }
+      }catch(_){}
+    }
+
+    function persist(kind){ // kind: "soci" | "accomp"
+      var map = getMap();
+      var ids = currentIds();
+      if(kind==="soci"){
+        var el = document.getElementById("s_scadenza");
+        if(el){
+          var id = ids.s;
+          var val = (el.value||"").toString();
+          writeStr(KEY_LAST_SOC_VAL, val);
+          if(id){ writeStr(KEY_LAST_SOC_ID, id); map[id] = val; setMap(map); }
+        }
+      }else if(kind==="accomp"){
+        var elA = document.getElementById("a_scadenza");
+        if(elA){
+          var idA = ids.a;
+          var valA = (elA.value||"").toString();
+          writeStr(KEY_LAST_ACC_VAL, valA);
+          if(idA){ writeStr(KEY_LAST_ACC_ID, idA); map[idA] = valA; setMap(map); }
+        }
+      }
+      // allinea RAM e UI
+      mergeIntoUi(getMap());
+      scheduleRenders();
+      setTimeout(scheduleRenders,0);
+      setTimeout(applyToChips,50);
+    }
+
+    function bindField(id, kind){
+      var el = document.getElementById(id);
+      if(!el) return;
+      ["input","change","blur"].forEach(function(ev){
+        el.addEventListener(ev, function(){ persist(kind); }, true);
+      });
+    }
+
+    function bootstrap(){
+      var map = getMap();
+      mergeIntoUi(map);
+      scheduleRenders();
+      applyToFormFromMap();
+      applyToChips();
+    }
+
+    document.addEventListener("DOMContentLoaded", function(){
+      bootstrap();
+    });
+    window.addEventListener("load", function(){
+      // ripeti bootstrap più volte per superare script che resettano tardi
+      setTimeout(bootstrap, 0);
+      setTimeout(bootstrap, 300);
+      setTimeout(bootstrap, 1200);
+      bindField("s_scadenza","soci");
+      bindField("a_scadenza","accomp");
+
+      // per 8s controlla e riapplica se svuotato
+      var start = Date.now();
+      var intv = setInterval(function(){
+        applyToFormFromMap();
+        applyToChips();
+        if(Date.now()-start>8000) clearInterval(intv);
+      }, 200);
+    });
+
+    // quando torni visibile (es. riapertura da cache)
+    document.addEventListener("visibilitychange", function(){
+      if(!document.hidden){ applyToFormFromMap(); applyToChips(); }
+    });
+
+    // sicurezza allo scarico
+    window.addEventListener("beforeunload", function(){
+      persist("soci"); persist("accomp");
+    });
+  }catch(e){ /* mai bloccare la pagina */ }
+})();
+</script>
+<!-- AUTOSAVE:END -->
 </body></html>
